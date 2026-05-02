@@ -517,6 +517,7 @@ class TelegramClientManager:
         self.event_handlers_registered = False
         self.monitored_keywords = []
         self.monitored_groups = []
+        self._processed_msg_ids = set()   # منع تكرار التنبيه لنفس الرسالة
 
     async def send_to_saved_messages(self, text):
         """إرسال رسالة إلى المحادثة المحفوظة (Saved Messages)"""
@@ -709,8 +710,16 @@ class TelegramClientManager:
             # ===== فحص الكلمات المفتاحية (جميع الرسائل: واردة وصادرة) =====
             kw_list = self.monitored_keywords
             if not kw_list:
-                logger.warning(f"⚠️ [{self.user_id}] قائمة الكلمات فارغة - لا مراقبة")
                 return
+
+            # ── حماية من التكرار: نفس message_id لا يُعالج مرتين ──
+            msg_uid = f"{getattr(event, 'chat_id', 0)}_{message.id}"
+            if msg_uid in self._processed_msg_ids:
+                return
+            # تنظيف الذاكرة: احتفظ بآخر 500 معرّف فقط
+            if len(self._processed_msg_ids) > 500:
+                self._processed_msg_ids.clear()
+            self._processed_msg_ids.add(msg_uid)
 
             import unicodedata
             def _normalize(s):
@@ -718,13 +727,20 @@ class TelegramClientManager:
                                if unicodedata.category(c) != 'Mn')
 
             text_clean = _normalize(text).lower()
+            # جمع كل الكلمات المطابقة في قائمة واحدة
+            matched = []
             for keyword in kw_list:
                 kw = keyword.strip()
                 if kw and _normalize(kw).lower() in text_clean:
-                    logger.info(f"🔑 [{self.user_id}] كلمة مطابقة: '{kw}' في {group_identifier}")
-                    await self._trigger_keyword_alert(
-                        message, kw, group_identifier, group_link, event
-                    )
+                    matched.append(kw)
+
+            if matched:
+                # كلمة واحدة أو عدة كلمات — تنبيه واحد فقط
+                combined_kw = ' | '.join(matched)
+                logger.info(f"🔑 [{self.user_id}] {len(matched)} كلمة مطابقة: '{combined_kw}' في {group_identifier}")
+                await self._trigger_keyword_alert(
+                    message, combined_kw, group_identifier, group_link, event
+                )
 
         except Exception as e:
             logger.error(f"Error handling new message: {str(e)}", exc_info=True)
