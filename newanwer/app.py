@@ -816,53 +816,90 @@ class TelegramClientManager:
     async def _trigger_keyword_alert(self, message, keyword, group_identifier, group_link, event):
         """تشغيل تنبيه الكلمة المفتاحية — إرسال فوري لحظي"""
         try:
-            # الحصول على معلومات المرسل
+            # ── معلومات المرسل ──
             sender_name = "غير معروف"
+            sender_id   = None
+            sender_username = None
             try:
                 sender = await event.get_sender()
                 if sender:
                     first = getattr(sender, 'first_name', '') or ''
                     last  = getattr(sender, 'last_name',  '') or ''
                     uname = getattr(sender, 'username',   '') or ''
+                    sender_id       = getattr(sender, 'id', None)
+                    sender_username = uname
                     full  = f"{first} {last}".strip()
-                    sender_name = full if full else (f"@{uname}" if uname else str(sender.id))
+                    sender_name = full if full else (f"@{uname}" if uname else str(sender_id))
             except Exception:
                 pass
 
-            msg_time = time.strftime('%H:%M:%S', time.localtime(message.date.timestamp()))
+            msg_time  = time.strftime('%H:%M:%S', time.localtime(message.date.timestamp()))
             full_text = message.text or ''
 
-            # إنشاء بيانات التنبيه
+            # ── رابط المجموعة القابل للضغط ──
+            # public group: https://t.me/username/msg_id
+            # private group: https://t.me/c/chat_id/msg_id
+            chat = await event.get_chat()
+            chat_username = getattr(chat, 'username', None)
+            raw_chat_id   = getattr(chat, 'id', None)
+            msg_id        = message.id
+
+            if chat_username:
+                msg_link = f"https://t.me/{chat_username}/{msg_id}"
+            elif raw_chat_id:
+                # إزالة البادئة السالبة -100 للمجموعات الخاصة
+                cid = str(raw_chat_id).lstrip('-')
+                if cid.startswith('100'):
+                    cid = cid[3:]
+                msg_link = f"https://t.me/c/{cid}/{msg_id}"
+            else:
+                msg_link = group_link
+
+            # ── رابط المرسل القابل للضغط ──
+            if sender_username:
+                sender_link = f"https://t.me/{sender_username}"
+            elif sender_id:
+                sender_link = f"tg://user?id={sender_id}"
+            else:
+                sender_link = None
+
+            # ── بناء رسالة التنبيه بـ Markdown (روابط حية) ──
+            # [نص](رابط) يجعل الرابط قابلاً للضغط في تيليجرام
+            group_part  = f"[{group_identifier}]({msg_link})" if msg_link else group_identifier
+            sender_part = f"[{sender_name}]({sender_link})"  if sender_link else sender_name
+
+            notification_msg = (
+                f"🚨 **تنبيه مراقبة**\n\n"
+                f"🔑 الكلمة: `{keyword}`\n"
+                f"👥 المجموعة: {group_part}\n"
+                f"👤 المرسل: {sender_part}\n"
+                f"🕐 الوقت: {msg_time}\n\n"
+                f"💬 الرسالة:\n{full_text}"
+            )
+
+            # إنشاء بيانات التنبيه للواجهة
             alert_data = {
                 "keyword":      keyword,
                 "group":        group_identifier,
-                "group_link":   group_link,
+                "group_link":   msg_link or group_link,
                 "message":      full_text[:200] + ("..." if len(full_text) > 200 else ""),
                 "full_message": full_text,
                 "timestamp":    time.strftime('%H:%M:%S'),
                 "sender":       sender_name,
+                "sender_link":  sender_link,
                 "message_time": msg_time,
-                "message_id":   message.id,
+                "message_id":   msg_id,
             }
 
-            # ── 1. إرسال فوري لتيليجرام مباشرةً من event loop (بدون queue, بدون thread) ──
-            link_line = f"\n🔗 الرابط: {group_link}" if group_link else ""
-            notification_msg = (
-                f"🚨 تنبيه مراقبة\n\n"
-                f"🔑 الكلمة: {keyword}\n"
-                f"👥 المجموعة: {group_identifier}"
-                f"{link_line}\n"
-                f"👤 المرسل: {sender_name}\n"
-                f"🕐 الوقت: {msg_time}\n\n"
-                f"... الرسالة:\n{full_text}"
-            )
+            # ── 1. إرسال فوري لتيليجرام مع Markdown ──
             try:
-                await self.client.send_message('me', notification_msg, link_preview=False)
-                logger.info(f"✅ Instant Telegram alert sent for user {self.user_id}: '{keyword}' in {group_identifier}")
+                await self.client.send_message('me', notification_msg,
+                                               parse_mode='md', link_preview=False)
+                logger.info(f"✅ Alert sent: '{keyword}' in {group_identifier} | msg {msg_link}")
             except Exception as tg_err:
-                logger.error(f"❌ Failed to send instant Telegram alert: {tg_err}")
+                logger.error(f"❌ Failed to send Telegram alert: {tg_err}")
 
-            # ── 2. إضافة للقائمة لإرسال تنبيه الواجهة (Socket.IO) عبر background thread ──
+            # ── 2. إضافة للقائمة لتنبيه الواجهة (Socket.IO) ──
             alert_queue.add_alert(self.user_id, alert_data)
 
         except Exception as e:
