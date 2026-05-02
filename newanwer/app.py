@@ -616,18 +616,33 @@ class TelegramClientManager:
                 await self.client.connect()
                 self.is_ready.set()
 
-                # تسجيل event handlers
+                # تسجيل event handlers قبل بدء الاستقبال
                 await self._register_event_handlers()
 
-                # الحفاظ على الاتصال
-                while not self.stop_flag.is_set():
-                    await asyncio.sleep(1)
+                # مراقبة stop_flag في الخلفية وقطع الاتصال عند الحاجة
+                async def _watch_stop():
+                    while not self.stop_flag.is_set():
+                        await asyncio.sleep(0.5)
+                    try:
+                        await self.client.disconnect()
+                    except Exception:
+                        pass
+
+                stop_task = asyncio.ensure_future(_watch_stop())
+
+                # run_until_disconnected هو الطريقة الصحيحة لاستقبال كل التحديثات
+                await self.client.run_until_disconnected()
+
+                stop_task.cancel()
 
         except Exception as e:
             logger.error(f"Client main error: {str(e)}")
         finally:
-            if self.client:
-                await self.client.disconnect()
+            try:
+                if self.client and self.client.is_connected():
+                    await self.client.disconnect()
+            except Exception:
+                pass
 
     async def _register_event_handlers(self):
         """تسجيل event handlers للرسائل الجديدة"""
@@ -635,17 +650,16 @@ class TelegramClientManager:
             if self.event_handlers_registered or not self.client:
                 return
 
-            @self.client.on(events.NewMessage)
+            # incoming=True: فقط الرسائل الواردة من الآخرين
+            @self.client.on(events.NewMessage(incoming=True))
             async def new_message_handler(event):
                 await self._handle_new_message(event)
-                # ─────────── إضافة ربط البوت التعليمي (التعديل الوحيد في الكود الأصلي) ───────────
                 if learning_manager.is_active(self.user_id):
                     bot = learning_manager.get_bot(self.user_id)
                     await bot.handle_incoming_message(event, self)
-                # ───────────────────────────────────────────────────────────────────────────────
 
             self.event_handlers_registered = True
-            logger.info(f"Event handlers registered for user {self.user_id}")
+            logger.info(f"✅ Event handlers registered for user {self.user_id} (incoming=True)")
 
         except Exception as e:
             logger.error(f"Failed to register event handlers: {str(e)}")
@@ -654,48 +668,55 @@ class TelegramClientManager:
         """معالجة الرسائل الجديدة الواردة - مراقبة شاملة لكامل الحساب"""
         try:
             message = event.message
-            if not message.text:
+            if not message or not message.text:
                 return
 
-            # تجاهل رسائلنا الصادرة لتفادي ردود ذاتية لا نهائية
-            if getattr(message, 'out', False):
-                return
+            text = message.text or ''
+            logger.debug(f"📨 [{self.user_id}] رسالة واردة: {text[:60]!r}")
 
             # الحصول على معلومات المحادثة
             chat = await event.get_chat()
             chat_username = getattr(chat, 'username', None)
-            chat_title = getattr(chat, 'title', None)
+            chat_title    = getattr(chat, 'title',    None)
+            chat_id       = getattr(chat, 'id',       None)
 
-            # تحديد معرف المجموعة/المحادثة
-            group_identifier = None
-            group_link = None
             if chat_username:
                 group_identifier = f"@{chat_username}"
-                group_link = f"https://t.me/{chat_username}"
+                group_link       = f"https://t.me/{chat_username}"
             elif chat_title:
                 group_identifier = chat_title
-                group_link = None
+                group_link       = None
             elif hasattr(chat, 'first_name'):
-                group_identifier = f"محادثة مع {chat.first_name}"
-                group_link = None
+                fname = getattr(chat, 'first_name', '') or ''
+                lname = getattr(chat, 'last_name',  '') or ''
+                group_identifier = f"{fname} {lname}".strip() or str(chat_id)
+                group_link       = None
             else:
-                group_identifier = f"محادثة {chat.id}"
-                group_link = None
+                group_identifier = str(chat_id)
+                group_link       = None
 
             # ===== الردود التلقائية =====
-            await self._handle_auto_reply(event, message, group_identifier)
+            try:
+                await self._handle_auto_reply(event, message, group_identifier)
+            except Exception as ar_err:
+                logger.error(f"Auto-reply error: {ar_err}")
 
-            # ===== فحص الكلمات المفتاحية للمراقبة =====
-            # فقط إذا كان هناك كلمات مراقبة محددة
-            if self.monitored_keywords:
-                message_lower = message.text.lower()
-                for keyword in self.monitored_keywords:
-                    keyword_lower = keyword.lower().strip()
-                    if keyword_lower and keyword_lower in message_lower:
-                        await self._trigger_keyword_alert(message, keyword, group_identifier, group_link, event)
+            # ===== فحص الكلمات المفتاحية =====
+            kw_list = self.monitored_keywords
+            if not kw_list:
+                return
+
+            text_lower = text.lower()
+            for keyword in kw_list:
+                kw = keyword.strip()
+                if kw and kw.lower() in text_lower:
+                    logger.info(f"🔑 [{self.user_id}] كلمة مطابقة: '{kw}' في {group_identifier}")
+                    await self._trigger_keyword_alert(
+                        message, kw, group_identifier, group_link, event
+                    )
 
         except Exception as e:
-            logger.error(f"Error handling new message: {str(e)}")
+            logger.error(f"Error handling new message: {str(e)}", exc_info=True)
 
     async def _handle_auto_reply(self, event, message, group_identifier):
         """معالجة الردود التلقائية للرسائل الواردة.
@@ -906,28 +927,6 @@ def notify_user_about_background_operations(user_id):
 
     except Exception as e:
         logger.error(f"Error notifying about background operations: {str(e)}")
-
-def update_monitoring_settings(self, keywords, groups):
-    """تحديث إعدادات المراقبة - فقط الكلمات المفتاحية (المجموعات للإرسال فقط)"""
-    self.monitored_keywords = [k.strip() for k in keywords if k.strip()]
-    # ⚠️ لا نحفظ مجموعات المراقبة - نراقب كل شيء
-    # نحفظ مجموعات الإرسال منفصلة في الإعدادات العادية
-
-    logger.info(f"Updated monitoring settings for {self.user_id}: {len(self.monitored_keywords)} keywords - مراقبة شاملة لكامل الحساب")
-
-def run_coroutine(self, coro):
-    """تشغيل coroutine في event loop الخاص بالعميل"""
-    if not self.loop:
-        raise Exception("Event loop not initialized")
-
-    future = asyncio.run_coroutine_threadsafe(coro, self.loop)
-    return future.result(timeout=30)
-
-def stop(self):
-    """إيقاف العميل"""
-    self.stop_flag.set()
-    if self.thread:
-        self.thread.join(timeout=5)
 
 # =========================== 
 # مدير التليجرام الرئيسي
