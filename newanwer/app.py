@@ -672,7 +672,6 @@ class TelegramClientManager:
                 return
 
             text = message.text or ''
-            logger.info(f"📨 [{self.user_id}] رسالة واردة من {getattr(event, 'chat_id', '?')}: {text[:60]!r}")
 
             # الحصول على معلومات المحادثة
             chat = await event.get_chat()
@@ -706,10 +705,16 @@ class TelegramClientManager:
             if not kw_list:
                 return
 
-            text_lower = text.lower()
+            import unicodedata
+            def _normalize(s):
+                """إزالة الحروف المزخرفة (combining marks) لمطابقة النص الطبيعي"""
+                return ''.join(c for c in unicodedata.normalize('NFKD', s)
+                               if unicodedata.category(c) != 'Mn')
+
+            text_clean = _normalize(text).lower()
             for keyword in kw_list:
                 kw = keyword.strip()
-                if kw and kw.lower() in text_lower:
+                if kw and _normalize(kw).lower() in text_clean:
                     logger.info(f"🔑 [{self.user_id}] كلمة مطابقة: '{kw}' في {group_identifier}")
                     await self._trigger_keyword_alert(
                         message, kw, group_identifier, group_link, event
