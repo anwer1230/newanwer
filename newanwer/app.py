@@ -672,7 +672,7 @@ class TelegramClientManager:
                 return
 
             text = message.text or ''
-            logger.debug(f"📨 [{self.user_id}] رسالة واردة: {text[:60]!r}")
+            logger.info(f"📨 [{self.user_id}] رسالة واردة من {getattr(event, 'chat_id', '?')}: {text[:60]!r}")
 
             # الحصول على معلومات المحادثة
             chat = await event.get_chat()
