@@ -1704,6 +1704,16 @@ def monitoring_worker(user_id):
                 "message": f"🚀 بدأت المراقبة الشاملة لكامل الرسائل في الحساب | الإرسال لـ {len(send_groups)} مجموعة"
             }, to=user_id)
 
+        # ── تحميل آخر وقت إرسال من الملف حتى لا يُعاد الإرسال فوراً بعد الإعادة ──
+        _persisted = load_settings(user_id)
+        _saved_last_send = _persisted.get('last_scheduled_send', 0)
+        # إذا لم يكن هناك سجل سابق → ابدأ العداد الآن (انتظر الفترة الكاملة أولاً)
+        if _saved_last_send == 0:
+            _saved_last_send = time.time()
+        with USERS_LOCK:
+            if user_id in USERS:
+                USERS[user_id]['last_scheduled_send'] = _saved_last_send
+
         # الحفاظ على المراقبة نشطة
         consecutive_errors = 0
 
@@ -1727,14 +1737,24 @@ def monitoring_worker(user_id):
                 if send_type == 'scheduled':
                     interval_seconds = int(settings.get('interval_seconds', 3600))
                     last_send = user_data.get('last_scheduled_send', 0)
+                    remaining = interval_seconds - (current_time - last_send)
 
-                    if current_time - last_send >= interval_seconds:
-                        logger.info(f"Executing scheduled send for user {user_id}")
+                    if remaining <= 0:
+                        logger.info(f"Executing scheduled send for user {user_id} (interval={interval_seconds}s)")
                         execute_scheduled_messages(user_id, settings)
 
+                        # ── حفظ وقت الإرسال في الذاكرة والملف ──
                         with USERS_LOCK:
                             if user_id in USERS:
                                 USERS[user_id]['last_scheduled_send'] = current_time
+                        try:
+                            _s = load_settings(user_id)
+                            _s['last_scheduled_send'] = current_time
+                            save_settings(user_id, _s)
+                        except Exception as _se:
+                            logger.error(f"Failed to persist last_scheduled_send: {_se}")
+                    else:
+                        logger.debug(f"Scheduled send for {user_id}: {int(remaining)}s remaining")
 
                 consecutive_errors = 0
 
