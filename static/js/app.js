@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = {
         message: (document.getElementById('message') || {}).value || '',
         groups: (document.getElementById('groups') || {}).value || '',
-        interval_seconds: parseInt((document.getElementById('intervalSeconds') || {}).value || '3600'),
+        interval_seconds: parseInt((document.getElementById('intervalSeconds') || {}).value || '25') * 60,
         watch_words: (document.getElementById('watchWords') || {}).value || '',
         send_type: (document.getElementById('sendType') || {}).value || 'manual',
         scheduled_time: (document.getElementById('scheduledTime') || {}).value || '',
@@ -251,6 +251,37 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       const r = await postJSON('/api/save_settings', data);
       showAlert(r.message || '', r.success ? 'success' : 'danger');
+    });
+  }
+
+  // ========== Scan Groups Protection button ==========
+  const scanGroupsBtn = document.getElementById('scanGroupsBtn');
+  const scanGroupsResult = document.getElementById('scanGroupsResult');
+  if (scanGroupsBtn) {
+    scanGroupsBtn.addEventListener('click', async () => {
+      const groups = (document.getElementById('groups') || {}).value || '';
+      if (!groups.trim()) {
+        showAlert('أدخل المجموعات أولاً في حقل "المجموعات"', 'warning', scanGroupsBtn);
+        return;
+      }
+      setLoading(scanGroupsBtn, true);
+      scanGroupsResult.style.display = 'none';
+      try {
+        const r = await postJSON('/api/scan_groups_protection', { groups });
+        if (r.error) { showAlert(r.error, 'danger', scanGroupsBtn); return; }
+        const rows = r.results.map(item => {
+          const icon = item.protected ? '🔴' : '🟢';
+          const cls  = item.protected ? 'text-danger' : 'text-success';
+          return `<div class="${cls} small py-1 border-bottom">${icon} <strong>${item.title || item.group}</strong> — ${item.reason || ''}</div>`;
+        }).join('');
+        const summary = `<div class="fw-bold mb-1">🔍 نتيجة الفحص: ${r.protected_count} محمية من أصل ${r.total}</div>`;
+        scanGroupsResult.innerHTML = summary + rows;
+        scanGroupsResult.style.display = 'block';
+      } catch (err) {
+        showAlert('خطأ في الفحص: ' + err.message, 'danger', scanGroupsBtn);
+      } finally {
+        setLoading(scanGroupsBtn, false);
+      }
     });
   }
 
@@ -510,7 +541,7 @@ function applySettingsToForm(s) {
   set('message', s.message || '');
   set('groups', Array.isArray(s.groups) ? s.groups.join('\n') : (s.groups || ''));
   set('watchWords', Array.isArray(s.watch_words) ? s.watch_words.join('\n') : (s.watch_words || ''));
-  set('intervalSeconds', s.interval_seconds || 3600);
+  set('intervalSeconds', Math.round((s.interval_seconds || 1500) / 60));
   set('sendType', s.send_type || 'manual');
   set('scheduledTime', s.scheduled_time || '');
   set('sanitizeMode', s.sanitize_mode || 'smart');
@@ -605,6 +636,44 @@ function initSocket() {
     if (stopBtn)  stopBtn.style.display  = running ? 'block' : 'none';
   });
   socket.on('user_settings', s => applySettingsToForm(s));
+  socket.on('new_alert', d => {
+    const keyword = d.keyword || '';
+    const group   = d.group   || '';
+    const sender  = d.sender  || 'غير معروف';
+    const msg     = d.message || '';
+    const ts      = d.timestamp || new Date().toLocaleTimeString('ar-SA');
+    // append to log
+    appendLog(`🚨 <strong>تنبيه مراقبة</strong>: كلمة "<em>${keyword}</em>" في ${group} من ${sender}`);
+    // show floating popup
+    const popup = document.createElement('div');
+    popup.className = 'alert alert-danger alert-dismissible fade show alert-popup keyword-alert';
+    popup.setAttribute('role', 'alert');
+    popup.innerHTML = `
+      <strong>🚨 تنبيه مراقبة – ${ts}</strong><br>
+      <b>الكلمة:</b> ${keyword}<br>
+      <b>المصدر:</b> ${group}<br>
+      <b>المرسل:</b> ${sender}<br>
+      <b>الرسالة:</b> <span style="font-size:12px;">${msg.substring(0,200)}</span>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>`;
+    const container = document.getElementById('alertContainer');
+    if (container) {
+      container.appendChild(popup);
+      setTimeout(() => { try { popup.remove(); } catch(e){} }, 15000);
+    }
+    // play notification sound if available
+    try { new Audio('/static/alert.mp3').play(); } catch(e){}
+  });
+  socket.on('monitoring_status', d => {
+    const ind = document.getElementById('monitoringIndicator');
+    if (!ind) return;
+    if (d && d.monitoring_active) {
+      ind.className = 'badge bg-success';
+      ind.innerHTML = '<i class="fas fa-circle"></i> مراقبة نشطة';
+    } else {
+      ind.className = 'badge bg-secondary';
+      ind.innerHTML = '<i class="fas fa-circle"></i> غير نشط';
+    }
+  });
   socket.on('stats_update', d => {
     const s = document.getElementById('sentCount');
     const e = document.getElementById('errorCount');
