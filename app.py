@@ -322,17 +322,71 @@ class MessageSanitizer:
 
 # قائمة بأسماء بوتات الحماية الشهيرة (lowercase usernames)
 PROTECTION_BOTS = {
-    'shieldy_bot', 'missrose_bot', 'rose_bot', 'groupguardbot',
-    'combot', 'cas_bot', 'spamwatch_bot', 'antispam_bot',
-    'safeguard_bot', 'defender_bot', 'banhammer_bot', 'security_bot',
-    'grouphelpbot', 'group_helpbot', 'safeguardbot', 'voteban_bot',
+    # Rose / Miss Rose
+    'missrose_bot', 'rose_bot', 'therose_bot', 'rosebot',
+    # Shieldy
+    'shieldy_bot', 'shieldy',
+    # ComBot
+    'combot', 'combot_tech',
+    # CAS / SpamWatch
+    'cas_bot', 'spamwatch_bot', 'spamwatchbot',
+    # Anti-Spam bots
+    'antispam_bot', 'antispambot', 'anti_spam_bot',
+    'spam_bot', 'spambot', 'reportspambot',
+    # Guard bots
+    'groupguardbot', 'groupguard_bot', 'guard_bot', 'guardbot',
+    'safeguard_bot', 'safeguardbot', 'safe_guard_bot',
+    'defender_bot', 'defenderbot',
+    'banhammer_bot', 'banhammerbot',
+    'security_bot', 'securitybot',
+    # Group Help
+    'grouphelpbot', 'group_helpbot', 'grouphelp_bot',
+    # Vote Ban
+    'voteban_bot', 'votebanbot',
+    # Channel / Service protection
     'antichannelpinbot', 'antiservicebot', 'antideleterobot',
-    'lolzteambot', 'spambot', 'dailybot', 'protectionbot',
+    # Lolz / protection suites
+    'lolzteambot', 'protectionbot',
+    # Policeman / Sheriff
+    'policeman_bot', 'policemanbot', 'sheriffbot', 'sheriff_bot',
+    # Nightbot / MEE6 style
+    'nightbot', 'mee6',
+    # Clean / Moderation
+    'cleanerbot', 'cleaner_bot', 'modbot', 'moderationbot',
+    # Spam Protectors
+    'no_spam_bot', 'nospambot', 'stopspambot', 'stop_spam_bot',
+    'anti_flood_bot', 'antifloodbot', 'flood_control_bot',
+    # Arabic / GCC protection bots
+    'hamasbot', 'arabicguard', 'arabguard_bot',
+    # Captcha / Verification
+    'captchabot', 'captcha_bot', 'verifybot', 'verify_bot',
+    'recaptcha_bot', 'human_verify_bot',
+    # Wick / Dyno style
+    'wickbot', 'wick_bot', 'dynobot',
+    # Silence / Mute
+    'silence_bot', 'silencebot', 'mutebot', 'mute_bot',
+    # Banned words
+    'word_filter_bot', 'filterbot', 'filter_bot',
+    # Generic patterns (checked separately via substring)
 }
 
-# كاش لحالة الحماية: { (user_id, chat_id): bool }
+# Substrings that indicate a protection bot
+PROTECTION_BOT_SUBSTRINGS = (
+    'shieldy', 'rose', 'guard', 'combot', 'spamwatch',
+    'antispam', 'anti_spam', 'safeguard', 'defender',
+    'banhammer', 'captcha', 'verify', 'protect',
+    'police', 'sheriff', 'cleanbot', 'noflood',
+    'antiflood', 'flood_', 'modbot', 'nochannel',
+)
+
+# كاش لحالة الحماية: { (user_id, chat_id): {'result': bool, 'reason': str|None, 'ts': float} }
 PROTECTED_GROUPS_CACHE = {}
 PROTECTED_GROUPS_LOCK = Lock()
+
+def _cache_protection(cache_key, result, reason):
+    """تخزين نتيجة فحص الحماية في الكاش."""
+    with PROTECTED_GROUPS_LOCK:
+        PROTECTED_GROUPS_CACHE[cache_key] = {'result': result, 'reason': reason, 'ts': time.time()}
 
 
 # =========================== 
@@ -456,38 +510,53 @@ class TelegramClientManager:
             logger.error(f"Failed to send to saved messages: {str(e)}")
 
     async def is_group_protected(self, entity_obj):
-        """فحص ما إذا كانت المجموعة تحتوي بوت حماية معروف. النتيجة مخزّنة مؤقتاً."""
+        """فحص ما إذا كانت المجموعة تحتوي بوت حماية أو قيود. النتيجة مخزّنة مؤقتاً لمدة 30 دقيقة."""
         try:
             chat_id = getattr(entity_obj, 'id', None)
             if chat_id is None:
-                return False
+                return False, None
             cache_key = (self.user_id, chat_id)
             with PROTECTED_GROUPS_LOCK:
-                if cache_key in PROTECTED_GROUPS_CACHE:
-                    return PROTECTED_GROUPS_CACHE[cache_key]
-            # ابحث في أول 80 مشارك عن بوت حماية معروف
+                cached = PROTECTED_GROUPS_CACHE.get(cache_key)
+                if cached is not None:
+                    # كاش صالح لمدة 30 دقيقة
+                    if time.time() - cached.get('ts', 0) < 1800:
+                        return cached['result'], cached['reason']
+            # ── 1. فحص صلاحيات المجموعة (default_banned_rights) ──────────────────
+            reason = None
             try:
-                async for participant in self.client.iter_participants(entity_obj, limit=80):
+                full = await self.client.get_entity(entity_obj)
+                banned = getattr(getattr(full, 'default_banned_rights', None), 'send_messages', None)
+                if banned:
+                    reason = 'المجموعة تمنع الأعضاء من الإرسال (restricted)'
+                    _cache_protection(cache_key, True, reason)
+                    return True, reason
+            except Exception:
+                pass
+
+            # ── 2. فحص المشاركين بحثاً عن بوت حماية ────────────────────────────
+            try:
+                async for participant in self.client.iter_participants(entity_obj, limit=120):
                     uname = (getattr(participant, 'username', '') or '').lower()
-                    if uname and (uname in PROTECTION_BOTS or any(b in uname for b in
-                            ('shieldy', 'rose', 'guard', 'combot', 'spamwatch',
-                             'antispam', 'safeguard', 'defender', 'banhammer'))):
-                        with PROTECTED_GROUPS_LOCK:
-                            PROTECTED_GROUPS_CACHE[cache_key] = True
-                        logger.info(f"Group {chat_id} flagged protected (bot: @{uname}) for user {self.user_id}")
-                        return True
+                    if not uname:
+                        continue
+                    if uname in PROTECTION_BOTS or any(s in uname for s in PROTECTION_BOT_SUBSTRINGS):
+                        reason = f'بوت حماية مكتشف: @{uname}'
+                        logger.info(f"Group {chat_id} protected ({reason}) for user {self.user_id}")
+                        _cache_protection(cache_key, True, reason)
+                        return True, reason
             except Exception as iter_err:
-                # بعض المجموعات تمنع جلب المشاركين — نعتبرها محمية احتياطاً للأمان
+                # المجموعة تمنع جلب المشاركين → نعتبرها محمية احتياطاً
+                reason = 'لا يمكن فحص أعضاء المجموعة (مقيّدة)'
                 logger.debug(f"Cannot iterate participants for {chat_id}: {iter_err}")
-                with PROTECTED_GROUPS_LOCK:
-                    PROTECTED_GROUPS_CACHE[cache_key] = True
-                return True
-            with PROTECTED_GROUPS_LOCK:
-                PROTECTED_GROUPS_CACHE[cache_key] = False
-            return False
+                _cache_protection(cache_key, True, reason)
+                return True, reason
+
+            _cache_protection(cache_key, False, None)
+            return False, None
         except Exception as e:
             logger.debug(f"is_group_protected error: {e}")
-            return False
+            return False, None
 
     def start_client_thread(self):
         """بدء thread منفصل للعميل"""
@@ -588,7 +657,6 @@ class TelegramClientManager:
             elif chat_title:
                 group_identifier = chat_title
             elif hasattr(chat, 'first_name'):
-                # محادثة شخصية
                 group_identifier = f"محادثة مع {chat.first_name}"
             else:
                 group_identifier = f"محادثة {chat.id}"
@@ -596,19 +664,14 @@ class TelegramClientManager:
             # ===== الردود التلقائية =====
             await self._handle_auto_reply(event, message, group_identifier)
 
-            # ⚠️ إزالة فحص المجموعات المحددة - مراقبة شاملة لكل شيء
-            # مراقبة كامل المجموعات والمحادثات بدون استثناء
-
-            # فحص الكلمات المفتاحية في كل رسالة
-            if self.monitored_keywords:  # إذا كان هناك كلمات مراقبة
+            # ===== فحص الكلمات المفتاحية للمراقبة =====
+            # فقط إذا كان هناك كلمات مراقبة محددة
+            if self.monitored_keywords:
                 message_lower = message.text.lower()
                 for keyword in self.monitored_keywords:
                     keyword_lower = keyword.lower().strip()
                     if keyword_lower and keyword_lower in message_lower:
                         await self._trigger_keyword_alert(message, keyword, group_identifier, event)
-            else:
-                # إذا لم تكن هناك كلمات محددة، راقب كل الرسائل
-                await self._trigger_keyword_alert(message, "رسالة جديدة", group_identifier, event)
 
         except Exception as e:
             logger.error(f"Error handling new message: {str(e)}")
@@ -1255,38 +1318,66 @@ class TelegramManager:
             logger.error(f"Send message error: {str(e)}")
             raise Exception(str(e))
 
-    def _maybe_sanitize(self, user_id, client_manager, entity_obj, entity_label, message):
-        """يطبّق التنقية الذكية للرسالة قبل الإرسال إذا لزم الأمر.
-        يرجع: نص الرسالة (نظيف أو أصلي) أو None إذا أصبحت فارغة بعد التنقية."""
+    def _check_group_protection(self, user_id, client_manager, entity_obj, entity_label):
+        """فحص المجموعة وإرجاع (action, reason).
+        action: 'send' | 'sanitize' | 'skip'
+        يُستخدم لكل أنواع الإرسال (نص / صور / نص+صور)."""
         try:
-            if not message:
-                return message
             settings = load_settings(user_id)
             mode = (settings.get('sanitize_mode') or 'smart').lower()
-            # 'off'  = لا تنقية
-            # 'smart' = تنقية فقط للمجموعات المحمية
-            # 'always' = تنقية دائمة
+
             if mode == 'off':
-                return message
-            should_sanitize = (mode == 'always')
-            if mode == 'smart':
-                try:
-                    is_prot = client_manager.run_coroutine(
-                        client_manager.is_group_protected(entity_obj)
-                    )
-                except Exception as _e:
-                    is_prot = False
-                should_sanitize = bool(is_prot)
+                return 'send', None
+
+            # فحص الحماية
+            try:
+                is_prot, reason = client_manager.run_coroutine(
+                    client_manager.is_group_protected(entity_obj)
+                )
+            except Exception:
+                is_prot, reason = False, None
+
+            if mode == 'skip':
                 if is_prot:
-                    socketio.emit('log_update', {
-                        "message": f"🛡️ المجموعة محمية ({entity_label}) — سيتم تنقية الرسالة"
-                    }, to=user_id)
-            if not should_sanitize:
+                    msg = f"⏭️ تم تخطي المجموعة المحمية: {entity_label} ({reason or 'بوت حماية'})"
+                    socketio.emit('log_update', {"message": msg}, to=user_id)
+                    return 'skip', reason
+                return 'send', None
+
+            if mode == 'always':
+                return 'sanitize', None
+
+            # mode == 'smart'
+            if is_prot:
+                socketio.emit('log_update', {
+                    "message": f"🛡️ مجموعة محمية: {entity_label} ({reason or 'بوت حماية'}) — سيتم تنقية الرسالة"
+                }, to=user_id)
+                return 'sanitize', reason
+
+            return 'send', None
+        except Exception as e:
+            logger.warning(f"_check_group_protection error: {e}")
+            return 'send', None
+
+    def _maybe_sanitize(self, user_id, client_manager, entity_obj, entity_label, message):
+        """يطبّق وضع الحماية على الرسالة النصية.
+        يرجع: نص الرسالة (نظيف أو أصلي)، أو None للتخطي الكامل."""
+        try:
+            action, reason = self._check_group_protection(user_id, client_manager, entity_obj, entity_label)
+
+            if action == 'skip':
+                return None  # تخطي المجموعة كلياً
+
+            if action == 'send':
+                return message  # إرسال بدون تعديل
+
+            # action == 'sanitize'
+            if not message:
                 return message
             cleaned = MessageSanitizer.sanitize(message)
             if cleaned is None:
                 socketio.emit('log_update', {
-                    "message": f"⚠️ تم تخطي الإرسال إلى {entity_label}: الرسالة كانت إعلانية بالكامل"
+                    "message": f"⚠️ تم تخطي الإرسال إلى {entity_label}: الرسالة إعلانية بالكامل بعد التنقية"
                 }, to=user_id)
                 return None
             if cleaned != message:
@@ -1299,12 +1390,11 @@ class TelegramManager:
             return message
 
     def send_media_async(self, user_id, entity, image_files):
-        """إرسال الصور فقط"""
+        """إرسال الصور فقط مع فحص الحماية"""
         try:
             with USERS_LOCK:
                 if user_id not in USERS:
                     raise Exception("المستخدم غير موجود")
-
                 client_manager = USERS[user_id].get('client_manager')
 
             if not client_manager:
@@ -1313,7 +1403,6 @@ class TelegramManager:
             is_authorized = client_manager.run_coroutine(
                 client_manager.client.is_user_authorized()
             )
-
             if not is_authorized:
                 raise Exception("العميل غير مصرح")
 
@@ -1328,21 +1417,32 @@ class TelegramManager:
                     client_manager.client.get_entity(entity)
                 )
 
-            # إرسال كل صورة منفصلة
+            # ── فحص الحماية للمجموعة ──────────────────────────────────────────
+            action, _reason = self._check_group_protection(user_id, client_manager, entity_obj, entity)
+            if action == 'skip':
+                return {"success": False, "skipped": True,
+                        "message": f"تم تخطي المجموعة المحمية: {entity}"}
+
+            # إرسال الصور كمجموعة واحدة
             results = []
-            for img_file in image_files:
-                try:
-                    result = client_manager.run_coroutine(
-                        client_manager.client.send_file(
-                            entity_obj, 
-                            img_file['path'],
-                            caption=f"📷 {img_file['name']}"
-                        )
-                    )
-                    results.append(result.id)
-                except Exception as img_error:
-                    logger.error(f"Error sending image {img_file['name']}: {str(img_error)}")
-                    raise img_error
+            paths = [f['path'] for f in image_files if os.path.exists(f.get('path', ''))]
+            if not paths:
+                raise Exception("لا توجد ملفات صور صالحة")
+
+            if len(paths) == 1:
+                result = client_manager.run_coroutine(
+                    client_manager.client.send_file(entity_obj, paths[0])
+                )
+                results.append(result.id)
+            else:
+                media_result = client_manager.run_coroutine(
+                    client_manager.client.send_file(entity_obj, paths)
+                )
+                if hasattr(media_result, '__iter__'):
+                    for r in media_result:
+                        results.append(r.id)
+                else:
+                    results.append(media_result.id)
 
             return {"success": True, "message_ids": results}
 
@@ -1417,21 +1517,13 @@ class TelegramManager:
                             results.append(media_result.id)
                             logger.info(f"Successfully sent single image with message to {entity}")
                         else:
-                            # عدة صور - إرسال كمجموعة (album)
+                            # عدة صور - إرسال كمجموعة (album) مع النص كـcaption للأولى
                             try:
-                                # إرسال النص أولاً إذا كان موجوداً
-                                if message and message.strip():
-                                    text_result = client_manager.run_coroutine(
-                                        client_manager.client.send_message(entity_obj, message)
-                                    )
-                                    results.append(text_result.id)
-
-                                # ثم إرسال الصور كمجموعة
                                 media_result = client_manager.run_coroutine(
                                     client_manager.client.send_file(
-                                        entity_obj, 
+                                        entity_obj,
                                         image_paths,
-                                        caption="📷 مجموعة صور"
+                                        caption=message if message and message.strip() else None
                                     )
                                 )
 
@@ -1445,22 +1537,15 @@ class TelegramManager:
                                 logger.info(f"Successfully sent {len(image_paths)} images as album to {entity}")
                             except Exception as album_error:
                                 logger.warning(f"Failed to send as album, sending individually: {str(album_error)}")
-
-                                # إرسال النص أولاً إذا كان موجوداً
-                                if message and message.strip():
-                                    text_result = client_manager.run_coroutine(
-                                        client_manager.client.send_message(entity_obj, message)
-                                    )
-                                    results.append(text_result.id)
-
-                                # إرسال الصور واحدة تلو الأخرى
+                                # إرسال الصورة الأولى مع النص ثم الباقي بدون نص
                                 for i, img_path in enumerate(image_paths):
                                     try:
+                                        cap = (message if message and message.strip() else None) if i == 0 else None
                                         media_result = client_manager.run_coroutine(
                                             client_manager.client.send_file(
-                                                entity_obj, 
+                                                entity_obj,
                                                 img_path,
-                                                caption=f"📷 صورة {i+1}"
+                                                caption=cap
                                             )
                                         )
                                         results.append(media_result.id)
@@ -2898,6 +2983,56 @@ def api_send_now():
         "success": True, 
         "message": f"🚀 بدأ إرسال {content_type} لـ {len(groups_list)} مجموعة"
     })
+
+@app.route("/api/scan_groups_protection", methods=["POST"])
+def api_scan_groups_protection():
+    """فحص قائمة المجموعات واكتشاف المحمية منها."""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "غير مسجّل"}), 401
+    try:
+        with USERS_LOCK:
+            client_manager = USERS.get(user_id, {}).get('client_manager')
+        if not client_manager:
+            return jsonify({"error": "العميل غير متصل"}), 400
+
+        data = request.get_json(force=True, silent=True) or {}
+        raw_groups = data.get('groups', '')
+        group_list = [g.strip() for g in re.split(r'[\n,]+', raw_groups) if g.strip()]
+        if not group_list:
+            return jsonify({"error": "لا توجد مجموعات للفحص"}), 400
+
+        results = []
+        for g in group_list[:50]:   # حد أقصى 50 مجموعة لتفادي الحظر
+            try:
+                try:
+                    entity_obj = client_manager.run_coroutine(
+                        client_manager.client.get_entity(g)
+                    )
+                except Exception:
+                    g2 = ('@' + g) if not g.startswith('@') and not g.startswith('https://') else g
+                    entity_obj = client_manager.run_coroutine(
+                        client_manager.client.get_entity(g2)
+                    )
+                is_prot, reason = client_manager.run_coroutine(
+                    client_manager.is_group_protected(entity_obj)
+                )
+                title = getattr(entity_obj, 'title', g)
+                results.append({
+                    "group": g,
+                    "title": title,
+                    "protected": is_prot,
+                    "reason": reason or ('غير محمية ✅' if not is_prot else '')
+                })
+            except Exception as e:
+                results.append({"group": g, "title": g, "protected": False, "reason": f"خطأ: {str(e)[:60]}"})
+
+        protected_count = sum(1 for r in results if r['protected'])
+        return jsonify({"success": True, "results": results, "protected_count": protected_count, "total": len(results)})
+    except Exception as e:
+        logger.error(f"Scan groups error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/get_stats", methods=["GET"])
 def api_get_stats():
