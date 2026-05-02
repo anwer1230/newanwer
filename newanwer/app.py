@@ -650,16 +650,18 @@ class TelegramClientManager:
             if self.event_handlers_registered or not self.client:
                 return
 
-            # incoming=True: فقط الرسائل الواردة من الآخرين
-            @self.client.on(events.NewMessage(incoming=True))
+            # بدون فلتر: جميع الرسائل (واردة وصادرة) لمراقبة الكلمات
+            @self.client.on(events.NewMessage())
             async def new_message_handler(event):
                 await self._handle_new_message(event)
-                if learning_manager.is_active(self.user_id):
-                    bot = learning_manager.get_bot(self.user_id)
-                    await bot.handle_incoming_message(event, self)
+                # الردود التلقائية فقط للرسائل الواردة
+                if not getattr(event.message, 'out', False):
+                    if learning_manager.is_active(self.user_id):
+                        bot = learning_manager.get_bot(self.user_id)
+                        await bot.handle_incoming_message(event, self)
 
             self.event_handlers_registered = True
-            logger.info(f"✅ Event handlers registered for user {self.user_id} (incoming=True)")
+            logger.info(f"✅ Event handlers registered for user {self.user_id} (all messages)")
 
         except Exception as e:
             logger.error(f"Failed to register event handlers: {str(e)}")
@@ -694,20 +696,24 @@ class TelegramClientManager:
                 group_identifier = str(chat_id)
                 group_link       = None
 
-            # ===== الردود التلقائية =====
-            try:
-                await self._handle_auto_reply(event, message, group_identifier)
-            except Exception as ar_err:
-                logger.error(f"Auto-reply error: {ar_err}")
+            is_outgoing = getattr(message, 'out', False)
+            logger.info(f"📨 [{self.user_id}] {'صادرة' if is_outgoing else 'واردة'} | {group_identifier} | {text[:50]!r}")
 
-            # ===== فحص الكلمات المفتاحية =====
+            # ===== الردود التلقائية (للرسائل الواردة فقط) =====
+            if not is_outgoing:
+                try:
+                    await self._handle_auto_reply(event, message, group_identifier)
+                except Exception as ar_err:
+                    logger.error(f"Auto-reply error: {ar_err}")
+
+            # ===== فحص الكلمات المفتاحية (جميع الرسائل: واردة وصادرة) =====
             kw_list = self.monitored_keywords
             if not kw_list:
+                logger.warning(f"⚠️ [{self.user_id}] قائمة الكلمات فارغة - لا مراقبة")
                 return
 
             import unicodedata
             def _normalize(s):
-                """إزالة الحروف المزخرفة (combining marks) لمطابقة النص الطبيعي"""
                 return ''.join(c for c in unicodedata.normalize('NFKD', s)
                                if unicodedata.category(c) != 'Mn')
 
