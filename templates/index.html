@@ -618,14 +618,24 @@
                                     التنقية الذكية للرسائل
                                 </label>
                                 <select class="form-select" id="sanitizeMode">
-                                    <option value="smart"  {{ 'selected' if (settings.sanitize_mode or 'smart') == 'smart'  else '' }}>🧠 ذكية — تنقية تلقائية فقط للمجموعات المحمية</option>
+                                    <option value="skip"   {{ 'selected' if settings.sanitize_mode == 'skip'   else '' }}>⏭️ تخطي — لا ترسل إلى المجموعات المحمية إطلاقاً (الأأمن)</option>
+                                    <option value="smart"  {{ 'selected' if (settings.sanitize_mode or 'smart') == 'smart'  else '' }}>🧠 ذكية — تنقية الرسالة تلقائياً للمجموعات المحمية</option>
                                     <option value="always" {{ 'selected' if settings.sanitize_mode == 'always' else '' }}>🛡️ دائمة — تنقية كل رسالة قبل الإرسال</option>
-                                    <option value="off"    {{ 'selected' if settings.sanitize_mode == 'off'    else '' }}>🚫 معطّل — أرسل الرسالة كما هي</option>
+                                    <option value="off"    {{ 'selected' if settings.sanitize_mode == 'off'    else '' }}>🚫 معطّل — أرسل الرسالة كما هي (خطر حظر)</option>
                                 </select>
                                 <div class="form-text">
-                                    تحذف تلقائياً: الروابط (t.me, wa.me, https://…)، أرقام الهواتف، المعرفات (@username)،
-                                    والكلمات الإعلانية. ينصح بـ"الذكية" لتجنّب الحظر في المجموعات التي تمنع الإعلانات.
+                                    <strong>⏭️ تخطي:</strong> يتجاهل المجموعات التي تحتوي بوتات حماية أو قيود — لن تُحظر منها. <br>
+                                    <strong>🧠 ذكية:</strong> ينقّي الرسالة (يحذف روابط/أرقام) عند إرسالها للمجموعات المحمية. <br>
+                                    <strong>🛡️ دائمة:</strong> ينقّي كل رسالة لجميع المجموعات.
                                 </div>
+                            </div>
+
+                            <!-- زر فحص المجموعات -->
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-warning btn-sm w-100" id="scanGroupsBtn">
+                                    <i class="fas fa-search-plus me-2"></i>فحص المجموعات (كشف المحمية منها)
+                                </button>
+                                <div id="scanGroupsResult" class="mt-2" style="display:none;max-height:200px;overflow-y:auto;"></div>
                             </div>
 
                             <div class="mb-3">
@@ -637,10 +647,10 @@
                             </div>
 
                             <div class="mb-3" id="intervalDiv" style="{{ 'display: none;' if settings.send_type != 'scheduled' else '' }}">
-                                <label for="intervalSeconds" class="form-label">فترة الإرسال (بالثواني)</label>
+                                <label for="intervalSeconds" class="form-label">فترة الإرسال (بالدقائق)</label>
                                 <input type="number" class="form-control" id="intervalSeconds"
-                                       value="{{ settings.interval_seconds or 3600 }}" min="60">
-                                <div class="form-text">الحد الأدنى: 60 ثانية</div>
+                                       value="{{ ((settings.interval_seconds or 1500) // 60) }}" min="1">
+                                <div class="form-text">الحد الأدنى: دقيقة واحدة — الافتراضي: 25 دقيقة</div>
                             </div>
 
                             <!-- حقل الوقت المحدد للإرسال المجدول -->
