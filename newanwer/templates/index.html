@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>مركز سرعة انجاز للخدمات الطلابية والأكاديمية</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1e3c78">
+    <meta name="description" content="مركز سرعة انجاز للخدمات الطلابية والأكاديمية - نظام التليجرام التلقائي">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        .header-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        .whatsapp-link {
+            color: #25D366;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .whatsapp-link:hover {
+            color: #128C7E;
+            transform: scale(1.05);
+        }
+        .log-container {
+            height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .console-container {
+            height: 250px;
+            overflow-y: auto;
+            background: #212529;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            color: #28a745;
+            font-family: 'Courier New', monospace;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-success {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+        .log-error {
+            background: #f8d7da;
+            color: #842029;
+        }
+        .log-warning {
+            background: #fff3cd;
+            color: #664d03;
+        }
+        .log-info {
+            background: #cff4fc;
+            color: #055160;
+        }
+        .log-time {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .console-line {
+            margin-bottom: 2px;
+            font-size: 12px;
+        }
+        .monitoring-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+
+        .alert-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            min-width: 400px;
+            max-width: 600px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .keyword-alert {
+            animation: alertBounce 0.5s ease-in-out;
+        }
+
+        @keyframes alertBounce {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        /* تحسين الشكل للجوال */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding: 10px;
+            }
+            .card-body {
+                padding: 15px;
+            }
+            .log-container, .console-container {
+                height: 200px;
+            }
+            .header-title {
+                padding: 20px;
+            }
+            .header-title h2 {
+                font-size: 1.5rem;
+            }
+            .alert-popup {
+                min-width: 90vw;
+                max-width: 95vw;
+            }
+        }
+
+        /* زر التثبيت */
+        .install-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .install-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.6);
+            background: linear-gradient(45deg, #218838, #1e7e34);
+        }
+
+        .install-btn i {
+            margin-left: 8px;
+        }
+
+        .pwa-features {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .pwa-features small {
+            display: block;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 5px;
+        }
+
+        /* أنماط شريط المستخدمين */
+        .users-bar .card {
+            border: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+
+        .user-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .user-tab {
+            border: 2px solid transparent;
+            border-radius: 25px;
+            padding: 8px 15px;
+            margin: 2px;
+            font-weight: bold;
+            background: white;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .user-tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            background: rgba(255,255,255,0.9);
+        }
+
+        .user-tab.active {
+            background: rgba(0,0,0,0.1);
+            transform: scale(1.05);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+        }
+
+        .user-tab.active::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(0,0,0,0.05));
+            border-radius: 23px;
+        }
+
+        .user-tab i {
+            font-size: 1.1em;
+        }
+
+        /* تحسين شكل المستخدمين للجوال */
+        @media (max-width: 768px) {
+            .user-tabs {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .user-tab {
+                width: 200px;
+                text-align: center;
+            }
+        }
+
+        /* إضافة تأثير النبضة للمستخدم النشط */
+        .user-tab.active {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 6px 15px rgba(0,0,0,0.2); }
+            50% { box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+            100% { box-shadow: 0 6px 15px rgba(0,0,0,0.2); }
+        }
+    </style>
+</head>
+<body>
+    <!-- شاشة البداية (Splash) -->
+    <div id="splashScreen" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1e3c78 0%,#2a5298 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .6s ease;">
+      <img src="/static/icons/splash.jpg" alt="splash" style="width:min(70vw,320px);height:min(70vw,320px);object-fit:cover;border-radius:24px;box-shadow:0 12px 40px rgba(0,0,0,.5);border:4px solid rgba(255,255,255,.25);">
+      <h2 style="color:#fff;margin-top:24px;font-weight:700;text-align:center;padding:0 16px;">مركز سرعة انجاز</h2>
+      <p style="color:rgba(255,255,255,.85);margin-top:4px;">للخدمات الطلابية والأكاديمية</p>
+      <div class="spinner-border text-light mt-3" role="status"></div>
+    </div>
+    <script>
+      function __hideSplash() {
+        const s = document.getElementById('splashScreen');
+        if (s) { s.style.opacity = '0'; setTimeout(() => s.remove(), 700); }
+      }
+      document.addEventListener('DOMContentLoaded', () => setTimeout(__hideSplash, 1500));
+      window.addEventListener('load', () => setTimeout(__hideSplash, 1500));
+      setTimeout(__hideSplash, 4000);
+    </script>
+
+    <div class="container-fluid mt-4">
+        <!-- شريط المستخدمين في الأعلى -->
+        <div class="users-bar mb-4">
+            <div class="card">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-center align-items-center flex-wrap">
+                        <small class="text-muted me-3 mb-2">اختر المستخدم:</small>
+                        <div class="user-tabs">
+                            {% for user_id, user_data in predefined_users.items() %}
+                            <button class="btn user-tab {% if user_id == current_user.id %}active{% endif %}"
+                                    id="userTab_{{ user_id }}"
+                                    data-user-id="{{ user_id }}"
+                                    data-default-name="{{ user_data.name }}"
+                                    style="color: {{ user_data.color }}; border-color: {{ user_data.color }};">
+                                <img class="user-tab-avatar"
+                                     id="userTabAvatar_{{ user_id }}"
+                                     src="/api/account_avatar/{{ user_id }}"
+                                     alt=""
+                                     onerror="this.style.display='none';"
+                                     onload="this.style.display='inline-block';"
+                                     style="display:none;width:26px;height:26px;border-radius:50%;object-fit:cover;margin-left:6px;border:2px solid {{ user_data.color }};vertical-align:middle;">
+                                <i class="{{ user_data.icon }} me-2"></i>
+                                <span class="user-tab-name">{{ user_data.name }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="text-center mt-2">
+                        <small class="text-info">
+                            <i class="fas fa-info-circle me-1"></i>
+                            المستخدم الحالي: <strong id="currentUserNameDisplay" style="color: {{ current_user.color }};">{{ current_user.name }}</strong>
+                            <img id="currentAccountAvatar" src="" alt="" onerror="this.style.display='none';" style="display:none;width:22px;height:22px;border-radius:50%;object-fit:cover;margin:0 6px;vertical-align:middle;border:1px solid #ddd;">
+                            <span id="currentAccountNameDisplay" class="ms-2 badge bg-light text-dark" style="display:none;"></span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- مساحة للتنبيهات -->
+        <div id="alertContainer"></div>
+
+        <!-- مؤشر حالة المراقبة -->
+        <div class="monitoring-status">
+            <span id="monitoringIndicator" class="badge bg-secondary">
+                <i class="fas fa-circle"></i> غير نشط
+            </span>
+        </div>
+
+        <!-- العنوان الرئيسي الجديد -->
+        <div class="header-title">
+            <h2 class="mb-3">
+                <i class="fas fa-graduation-cap me-2"></i>
+                📚 تصميم وتنفيذ مركز سرعة انجاز
+            </h2>
+            <h4 class="mb-3">للخدمات الطلابية والأكاديمية</h4>
+            <p class="mb-2">
+                <i class="fab fa-whatsapp me-2"></i>
+                واتساب: 
+                <a href="https://wa.me/+966510349663" class="whatsapp-link" target="_blank">
+                    +966510349663
+                </a>
+            </p>
+            <div class="mt-3">
+                <small id="connectionStatus" class="badge bg-secondary">
+                    {% if connection_status == 'connected' %}
+                        <i class="fas fa-circle text-success"></i> متصل
+                    {% else %}
+                        <i class="fas fa-circle text-danger"></i> غير متصل
+                    {% endif %}
+                </small>
+            </div>
+
+            <!-- زر تثبيت التطبيق -->
+            <div class="text-center mt-3">
+                <button id="installAppBtn" class="btn install-btn" style="display: inline-block;">
+                    <i class="fas fa-download"></i>
+                    تثبيت التطبيق على الجوال
+                </button>
+
+                <div class="pwa-features">
+                    <small><i class="fas fa-mobile-alt"></i> يعمل على جميع الأجهزة</small>
+                    <small><i class="fas fa-wifi"></i> يعمل بدون إنترنت</small>
+                    <small><i class="fas fa-bell"></i> إشعارات فورية</small>
+                    <small><i class="fas fa-rocket"></i> سرعة عالية</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- لوحة تسجيل الدخول -->
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white text-center">
+                        <h2 class="mb-1">
+                            <i class="fas fa-telegram-plane me-2"></i>
+                            تسجيل الدخول
+                        </h2>
+                        <small id="connectionStatusHeader" class="badge bg-secondary">
+                            {% if connection_status == 'connected' %}
+                                <i class="fas fa-circle text-success"></i> متصل
+                            {% else %}
+                                <i class="fas fa-circle text-danger"></i> غير متصل
+                            {% endif %}
+                        </small>
+                    </div>
+                    <div class="card-body">
+                        <form id="loginForm">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">رقم الهاتف</label>
+                                <input type="tel" class="form-control" id="phone"
+                                        placeholder="+966xxxxxxxxx"
+                                        value="{{ settings.phone or '' }}"
+                                       required>
+                                <div class="form-text">أدخل رقم الهاتف مع رمز الدولة</div>
+                            </div>
+
+                            <div class="mb-3" id="passwordDiv" style="display: none;">
+                                <label for="password" class="form-label">كلمة مرور التليجرام (اختيارية)</label>
+                                <input type="password" class="form-control" id="password"
+                                        placeholder="كلمة المرور للتحقق الثنائي">
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-2" id="loginButtonContainer">
+                                    <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+                                        <i class="fas fa-sign-in-alt me-2"></i>
+                                        تسجيل الدخول
+                                    </button>
+                                </div>
+
+                                <!-- أزرار إدارة الجلسة - تظهر بعد تسجيل الدخول -->
+                                <div class="col-md-6 mb-2" id="sessionControls" style="display: none;">
+                                    <button type="button" class="btn btn-danger w-100" id="logoutButton">
+                                        <i class="fas fa-sign-out-alt me-2"></i>تسجيل الخروج
+                                    </button>
+                                    <small class="text-muted d-block mt-1 text-center">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        إنهاء جلسة التليجرام نهائياً
+                                    </small>
+                                </div>
+                                
+                            </div>
+                        </form>
+
+                        <!-- نموذج التحقق من الكود -->
+                        <form id="verifyForm" style="display: none;">
+                            <div class="mb-3">
+                                <label for="verificationCode" class="form-label">كود التحقق</label>
+                                <input type="text" class="form-control" id="verificationCode"
+                                        placeholder="أدخل كود التحقق المرسل">
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-check me-2"></i>
+                                تأكيد الكود
+                            </button>
+                            <div class="row mt-2 g-2">
+                                <div class="col-6">
+                                    <button type="button" class="btn btn-outline-primary btn-sm w-100" id="resendCodeBtn">
+                                        <i class="fas fa-redo me-1"></i>إعادة إرسال
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button type="button" class="btn btn-outline-warning btn-sm w-100" id="resendSmsBtn">
+                                        <i class="fas fa-sms me-1"></i>إرسال عبر SMS
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted d-block mt-2 text-center">
+                                <i class="fas fa-info-circle me-1"></i>
+                                الكود يصل أولاً داخل تطبيق تيليجرام. اضغط "إرسال عبر SMS" لاستلامه كرسالة نصية.
+                            </small>
+                        </form>
+
+                        <!-- نموذج كلمة المرور -->
+                        <form id="passwordForm" style="display: none;">
+                            <div class="mb-3">
+                                <label for="twoFactorPassword" class="form-label">كلمة مرور التحقق الثنائي</label>
+                                <input type="password" class="form-control" id="twoFactorPassword"
+                                        placeholder="أدخل كلمة المرور">
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-unlock me-2"></i>
+                                تأكيد كلمة المرور
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- إحصائيات الإرسال -->
+                <div class="card mt-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            إحصائيات الإرسال
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h3 class="text-success" id="sentCount">0</h3>
+                                <small>رسائل مرسلة</small>
+                            </div>
+                            <div class="col-6">
+                                <h3 class="text-danger" id="errorCount">0</h3>
+                                <small>أخطاء</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الوظائف الجديدة -->
+                <div class="card mt-3">
+                    <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #1e3c78 0%, #2a5298 100%);">
+                        <h5 class="mb-0">
+                            <i class="fas fa-rocket me-2"></i>
+                            الوظائف الجديدة
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2">
+                            <div class="col-6 col-md-4">
+                                <button type="button" class="btn btn-outline-primary w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnLearningSystem" data-bs-toggle="modal" data-bs-target="#learningModal">
+                                    <i class="fas fa-brain fa-2x mb-2"></i>
+                                    <span class="small fw-bold">نظام التعلم الذكي</span>
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <button type="button" class="btn btn-outline-success w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnRotatingSystem" data-bs-toggle="modal" data-bs-target="#rotatingModal">
+                                    <i class="fas fa-sync-alt fa-2x mb-2"></i>
+                                    <span class="small fw-bold">النشر الدوري</span>
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <button type="button" class="btn btn-outline-info w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnSearchPublic" data-bs-toggle="modal" data-bs-target="#searchPublicModal">
+                                    <i class="fas fa-globe fa-2x mb-2"></i>
+                                    <span class="small fw-bold">البحث في القنوات العامة</span>
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <button type="button" class="btn btn-outline-warning w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnSearchMyLinks" data-bs-toggle="modal" data-bs-target="#searchMyLinksModal">
+                                    <i class="fas fa-search fa-2x mb-2"></i>
+                                    <span class="small fw-bold">البحث في روابطي</span>
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <button type="button" class="btn btn-outline-danger w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnAutoJoinAdvanced" data-bs-toggle="modal" data-bs-target="#autoJoinAdvancedModal">
+                                    <i class="fas fa-bolt fa-2x mb-2"></i>
+                                    <span class="small fw-bold">الانضمام المتقدم</span>
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <button type="button" class="btn btn-outline-secondary w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnSystemHealth" onclick="checkSystemHealth()">
+                                    <i class="fas fa-heartbeat fa-2x mb-2"></i>
+                                    <span class="small fw-bold">صحة النظام</span>
+                                </button>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <button type="button" class="btn btn-outline-info w-100 h-100 py-3 d-flex flex-column align-items-center justify-content-center" id="btnAutoReplies" data-bs-toggle="modal" data-bs-target="#autoRepliesModal">
+                                    <i class="fas fa-reply-all fa-2x mb-2"></i>
+                                    <span class="small fw-bold">الردود التلقائية</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- لوحة الإعدادات -->
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cog me-2"></i>
+                            إعدادات المراقبة والإرسال
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="settingsForm">
+                            <div class="mb-3">
+                                <label for="message" class="form-label">الرسالة</label>
+                                <textarea class="form-control" id="message" rows="3"
+                                          placeholder="اكتب الرسالة المراد إرسالها">{{ settings.message or '' }}</textarea>
+                            </div>
+
+                            <!-- قسم رفع الصور المحسن -->
+                            <div class="mb-3">
+                                <label for="imageUpload" class="form-label">
+                                    <i class="fas fa-image me-2"></i>إضافة صور للرسالة (اختياري)
+                                </label>
+                                
+                                <!-- منطقة السحب والإفلات -->
+                                <div id="dropZone" class="border border-2 border-dashed border-secondary rounded p-4 text-center mb-3" 
+                                     style="min-height: 120px; cursor: pointer; transition: all 0.3s ease;">
+                                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                                    <h6 class="text-muted">اسحب الصور هنا أو انقر للاختيار</h6>
+                                    <p class="text-muted small mb-0">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        يدعم: JPG, PNG, GIF, WebP | الحد الأقصى: 10MB لكل صورة
+                                    </p>
+                                    <input type="file" class="d-none" id="imageUpload" 
+                                           accept="image/jpeg,image/png,image/gif,image/webp" multiple>
+                                </div>
+                                
+                                <!-- معاينة الصور المرفوعة -->
+                                <div id="imagePreview" class="mt-3" style="display: none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0"><i class="fas fa-images me-2 text-primary"></i>الصور المحددة (<span id="imageCount">0</span>)</h6>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="clearImages">
+                                            <i class="fas fa-trash me-1"></i>مسح الكل
+                                        </button>
+                                    </div>
+                                    <div id="imagePreviewContainer" class="row g-2"></div>
+                                    <div class="alert alert-info mt-2 py-2" id="imageSendInfo">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        <strong>ملاحظة:</strong> ستُرسل الصور مع الرسالة النصية معاً في نفس الرسالة
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="groups" class="form-label">مجموعات الإرسال</label>
+                                <textarea class="form-control" id="groups" rows="4"
+                                          placeholder="ضع كل مجموعة في سطر منفصل (@username أو اسم المجموعة)">{{ '\n'.join(settings.groups or []) }}</textarea>
+                                <div class="form-text">
+                                    📤 هذه المجموعات للإرسال فقط - المراقبة تشمل كامل الحساب تلقائياً
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="watchWords" class="form-label">كلمات المراقبة (اختيارية)</label>
+                                <textarea class="form-control" id="watchWords" rows="3"
+                                          placeholder="ضع كل كلمة في سطر منفصل (اتركها فارغة لمراقبة كل الرسائل)">{{ '\n'.join(settings.watch_words or []) }}</textarea>
+                                <div class="form-text">
+                                    ⚠️ المراقبة تشمل كامل المجموعات والمحادثات في الحساب
+                                    <br>🔹 إذا حددت كلمات: سيتم التنبيه عند ورود هذه الكلمات فقط
+                                    <br>🔹 إذا تركتها فارغة: سيتم التنبيه لكل الرسائل الجديدة
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="sanitizeMode" class="form-label">
+                                    <i class="fas fa-shield-alt text-success me-1"></i>
+                                    التنقية الذكية للرسائل
+                                </label>
+                                <select class="form-select" id="sanitizeMode">
+                                    <option value="skip"   {{ 'selected' if settings.sanitize_mode == 'skip'   else '' }}>⏭️ تخطي — لا ترسل إلى المجموعات المحمية إطلاقاً (الأأمن)</option>
+                                    <option value="smart"  {{ 'selected' if (settings.sanitize_mode or 'smart') == 'smart'  else '' }}>🧠 ذكية — تنقية الرسالة تلقائياً للمجموعات المحمية</option>
+                                    <option value="always" {{ 'selected' if settings.sanitize_mode == 'always' else '' }}>🛡️ دائمة — تنقية كل رسالة قبل الإرسال</option>
+                                    <option value="off"    {{ 'selected' if settings.sanitize_mode == 'off'    else '' }}>🚫 معطّل — أرسل الرسالة كما هي (خطر حظر)</option>
+                                </select>
+                                <div class="form-text">
+                                    <strong>⏭️ تخطي:</strong> يتجاهل المجموعات التي تحتوي بوتات حماية أو قيود — لن تُحظر منها. <br>
+                                    <strong>🧠 ذكية:</strong> ينقّي الرسالة (يحذف روابط/أرقام) عند إرسالها للمجموعات المحمية. <br>
+                                    <strong>🛡️ دائمة:</strong> ينقّي كل رسالة لجميع المجموعات.
+                                </div>
+                            </div>
+
+                            <!-- زر فحص المجموعات -->
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-warning btn-sm w-100" id="scanGroupsBtn">
+                                    <i class="fas fa-search-plus me-2"></i>فحص المجموعات (كشف المحمية منها)
+                                </button>
+                                <div id="scanGroupsResult" class="mt-2" style="display:none;max-height:200px;overflow-y:auto;"></div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="sendType" class="form-label">نوع الإرسال</label>
+                                <select class="form-select" id="sendType">
+                                    <option value="manual" {{ 'selected' if settings.send_type == 'manual' else '' }}>يدوي</option>
+                                    <option value="scheduled" {{ 'selected' if settings.send_type == 'scheduled' else '' }}>مجدول</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3" id="intervalDiv" style="{{ 'display: none;' if settings.send_type != 'scheduled' else '' }}">
+                                <label for="intervalSeconds" class="form-label">فترة الإرسال (بالدقائق)</label>
+                                <input type="number" class="form-control" id="intervalSeconds"
+                                       value="{{ ((settings.interval_seconds or 1500) // 60) }}" min="1">
+                                <div class="form-text">الحد الأدنى: دقيقة واحدة — الافتراضي: 25 دقيقة</div>
+                            </div>
+
+                            <!-- حقل الوقت المحدد للإرسال المجدول -->
+                            <div class="mb-3" id="scheduledTimeDiv" style="{{ 'display: none;' if settings.send_type != 'scheduled' else '' }}">
+                                <label for="scheduledTime" class="form-label">
+                                    <i class="fas fa-clock me-2"></i>الوقت المحدد للإرسال
+                                </label>
+                                <input type="datetime-local" class="form-control" id="scheduledTime"
+                                       value="{{ settings.scheduled_time or '' }}">
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    حدد التاريخ والوقت المطلوب للإرسال التلقائي
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="fas fa-save me-2"></i>
+                                        حفظ الإعدادات
+                                    </button>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <button type="button" class="btn btn-primary w-100" id="sendNowBtn">
+                                        <i class="fas fa-paper-plane me-2"></i>
+                                        إرسال الآن
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- أزرار التحكم -->
+                        <div class="row mt-3">
+                            <div class="col-md-6 mb-2">
+                                <button class="btn btn-warning w-100" id="startMonitoringBtn">
+                                    <i class="fas fa-play me-2"></i>
+                                    بدء المراقبة
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button class="btn btn-danger w-100" id="stopMonitoringBtn" style="display: none;">
+                                    <i class="fas fa-stop me-2"></i>
+                                    إيقاف المراقبة
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- سجل العمليات -->
+        <div class="row">
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            سجل العمليات
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="operationsLog" class="log-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- وحدة التحكم -->
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-terminal me-2"></i>
+                            وحدة التحكم
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="consoleLog" class="console-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تحميل المكتبات -->
+    <!-- مودالات الوظائف الجديدة -->
+
+    <!-- 1) نظام التعلم الذكي -->
+    <div class="modal fade" id="learningModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title"><i class="fas fa-brain me-2"></i>نظام التعلم الذكي</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <strong>الحالة:</strong>
+                <span id="learningStatusBadge" class="badge bg-secondary">غير مفعل</span>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="learningToggle">
+                <label class="form-check-label" for="learningToggle">تفعيل البوت التعليمي</label>
+              </div>
+            </div>
+
+            <hr>
+            <h6 class="mb-3"><i class="fas fa-plus-circle me-2 text-primary"></i>إضافة خدمة جديدة</h6>
+            <div class="row g-2 mb-2">
+              <div class="col-md-4"><input type="text" class="form-control" id="learningServiceName" placeholder="اسم الخدمة"></div>
+              <div class="col-md-8"><input type="text" class="form-control" id="learningServiceDesc" placeholder="وصف الخدمة"></div>
+              <div class="col-12"><input type="text" class="form-control" id="learningServiceKeywords" placeholder="كلمات مفتاحية مفصولة بفاصلة (مثال: بحث, ترجمة, تصميم)"></div>
+              <div class="col-12"><button class="btn btn-primary w-100" id="addLearningService"><i class="fas fa-plus me-2"></i>إضافة الخدمة</button></div>
+            </div>
+
+            <hr>
+            <h6 class="mb-2"><i class="fas fa-list me-2 text-info"></i>الخدمات المسجلة</h6>
+            <div id="learningServicesList" class="mb-3"><small class="text-muted">جارِ التحميل...</small></div>
+
+            <hr>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0"><i class="fas fa-question-circle me-2 text-warning"></i>طلبات غير معروفة</h6>
+              <button class="btn btn-sm btn-outline-danger" id="clearUnknownBtn"><i class="fas fa-trash me-1"></i>مسح الكل</button>
+            </div>
+            <div id="learningUnknownList"><small class="text-muted">لا توجد طلبات</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2) النشر الدوري -->
+    <div class="modal fade" id="rotatingModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title"><i class="fas fa-sync-alt me-2"></i>النشر الدوري المتسلسل</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>أرسل حتى 5 رسائل بالتناوب إلى مجموعات محددة كل عدة دقائق.</div>
+            <div class="mb-2">
+              <label class="form-label fw-bold">الرسائل (5 كحد أقصى)</label>
+              <textarea class="form-control mb-1" id="rotMsg1" rows="2" placeholder="الرسالة 1"></textarea>
+              <textarea class="form-control mb-1" id="rotMsg2" rows="2" placeholder="الرسالة 2"></textarea>
+              <textarea class="form-control mb-1" id="rotMsg3" rows="2" placeholder="الرسالة 3"></textarea>
+              <textarea class="form-control mb-1" id="rotMsg4" rows="2" placeholder="الرسالة 4"></textarea>
+              <textarea class="form-control mb-1" id="rotMsg5" rows="2" placeholder="الرسالة 5"></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label fw-bold">المجموعات (رابط أو @username لكل سطر)</label>
+              <textarea class="form-control" id="rotGroups" rows="4" placeholder="https://t.me/group1&#10;@group2"></textarea>
+            </div>
+            <div class="card border-success mb-3">
+              <div class="card-header bg-success bg-opacity-10 text-success fw-bold">
+                <i class="fas fa-clock me-2"></i>الفترة الزمنية بين الإرسال
+              </div>
+              <div class="card-body">
+                <div class="row g-2 align-items-end">
+                  <div class="col-md-6">
+                    <label class="form-label">المدة</label>
+                    <input type="number" class="form-control form-control-lg text-center fw-bold" id="rotInterval" min="1" value="5" style="font-size:1.4rem;">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">الوحدة</label>
+                    <select class="form-select form-select-lg" id="rotIntervalUnit">
+                      <option value="seconds">ثانية</option>
+                      <option value="minutes" selected>دقيقة</option>
+                      <option value="hours">ساعة</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="mt-3">
+                  <small class="text-muted d-block mb-2">اختيار سريع:</small>
+                  <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-success rot-preset" data-val="30" data-unit="seconds">30 ثانية</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rot-preset" data-val="1"  data-unit="minutes">دقيقة</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rot-preset" data-val="5"  data-unit="minutes">5 دقائق</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rot-preset" data-val="15" data-unit="minutes">15 دقيقة</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rot-preset" data-val="30" data-unit="minutes">30 دقيقة</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rot-preset" data-val="1"  data-unit="hours">ساعة</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rot-preset" data-val="3"  data-unit="hours">3 ساعات</button>
+                  </div>
+                </div>
+                <div class="alert alert-info mt-3 mb-0 py-2">
+                  <i class="fas fa-info-circle me-1"></i>
+                  سيتم الإرسال كل: <strong id="rotIntervalSummary">5 دقيقة</strong>
+                </div>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span><strong>الحالة:</strong> <span id="rotStatusBadge" class="badge bg-secondary">متوقف</span></span>
+            </div>
+            <div id="rotCountdownCard" class="card border-success bg-success bg-opacity-10 mb-3" style="display:none;">
+              <div class="card-body text-center py-3">
+                <div class="text-success fw-bold mb-1">
+                  <i class="fas fa-hourglass-half me-2"></i>الإرسال القادم خلال:
+                </div>
+                <div id="rotCountdownDisplay" style="font-size:2.2rem;font-weight:800;color:#198754;font-family:monospace;letter-spacing:2px;">--:--</div>
+                <div class="progress mt-2" style="height:8px;">
+                  <div id="rotCountdownBar" class="progress-bar bg-success" role="progressbar" style="width:0%;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-4"><button class="btn btn-primary w-100" id="rotSaveBtn"><i class="fas fa-save me-2"></i>حفظ</button></div>
+              <div class="col-md-4"><button class="btn btn-success w-100" id="rotStartBtn"><i class="fas fa-play me-2"></i>بدء</button></div>
+              <div class="col-md-4"><button class="btn btn-danger w-100" id="rotStopBtn"><i class="fas fa-stop me-2"></i>إيقاف</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3) البحث في القنوات العامة -->
+    <div class="modal fade" id="searchPublicModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-info text-white">
+            <h5 class="modal-title"><i class="fas fa-globe me-2"></i>البحث في القنوات العامة</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-2 mb-3">
+              <div class="col-md-8"><input type="text" class="form-control" id="searchPublicQuery" placeholder="نص للبحث (مثال: تصميم, برمجة, كتب)"></div>
+              <div class="col-md-2"><input type="number" class="form-control" id="searchPublicLimit" min="1" max="100" value="50" placeholder="عدد النتائج"></div>
+              <div class="col-md-2"><button class="btn btn-info text-white w-100" id="searchPublicBtn"><i class="fas fa-search me-1"></i>بحث</button></div>
+            </div>
+            <div id="searchPublicResults"><small class="text-muted">لم يتم البحث بعد</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4) البحث في روابطي -->
+    <div class="modal fade" id="searchMyLinksModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title"><i class="fas fa-search me-2"></i>البحث في روابطي</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>يبحث عن جميع روابط التليجرام في محادثاتك خلال فترة محددة.</div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-8"><label class="form-label">عدد الأيام للبحث (1 - 365)</label><input type="number" class="form-control" id="myLinksDays" min="1" max="365" value="60"></div>
+              <div class="col-md-4 d-flex align-items-end"><button class="btn btn-warning w-100" id="searchMyLinksBtn"><i class="fas fa-search me-1"></i>بدء البحث</button></div>
+            </div>
+            <div id="myLinksResults"><small class="text-muted">لم يتم البحث بعد</small></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5) الانضمام التلقائي المتقدم -->
+    <div class="modal fade" id="autoJoinAdvancedModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title"><i class="fas fa-bolt me-2"></i>الانضمام التلقائي المتقدم</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-bold">روابط المجموعات (سطر لكل رابط)</label>
+              <textarea class="form-control" id="advLinks" rows="6" placeholder="https://t.me/group1&#10;https://t.me/+invite&#10;@channel"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">التأخير بين كل انضمام (ثواني)</label>
+              <input type="number" class="form-control" id="advDelay" min="1" value="3">
+            </div>
+            <button class="btn btn-danger w-100" id="advJoinBtn"><i class="fas fa-bolt me-2"></i>بدء الانضمام المتقدم</button>
+            <hr>
+
+            <!-- ملخص الإحصائيات -->
+            <div id="advJoinSummary" class="d-none mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>التقدم: <span id="advProgressText">0 / 0</span></strong>
+                <small class="text-muted" id="advRemainingText"></small>
+              </div>
+              <div class="progress mb-3" style="height: 22px;">
+                <div id="advProgressBar"
+                     class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+                     role="progressbar" style="width: 0%; font-weight: 600;">0%</div>
+              </div>
+              <div class="row g-2 text-center">
+                <div class="col">
+                  <div class="border rounded p-2 bg-success bg-opacity-10">
+                    <div class="fs-5 fw-bold text-success" id="advCountSuccess">0</div>
+                    <small class="text-success">✅ نجح</small>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="border rounded p-2 bg-info bg-opacity-10">
+                    <div class="fs-5 fw-bold text-info" id="advCountAlready">0</div>
+                    <small class="text-info">📌 منضم مسبقاً</small>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="border rounded p-2 bg-danger bg-opacity-10">
+                    <div class="fs-5 fw-bold text-danger" id="advCountFail">0</div>
+                    <small class="text-danger">❌ فشل</small>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="border rounded p-2 bg-light">
+                    <div class="fs-5 fw-bold text-secondary" id="advCountTotal">0</div>
+                    <small class="text-secondary">📋 المجموع</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ملخّص أسباب الفشل (يظهر في النهاية) -->
+            <div id="advFailBreakdown" class="d-none mb-3">
+              <h6 class="fw-bold text-danger mb-2">
+                <i class="fas fa-exclamation-triangle me-1"></i> ملخّص أسباب الفشل
+              </h6>
+              <ul class="list-group" id="advFailBreakdownList"></ul>
+            </div>
+
+            <!-- قائمة تفصيلية بكل رابط ونتيجته -->
+            <div id="advJoinResults"><small class="text-muted">لم يبدأ الانضمام بعد</small></div>
+            <div id="advJoinDetails" class="d-none mt-2" style="max-height: 320px; overflow-y: auto;">
+              <ul class="list-group list-group-flush" id="advJoinDetailsList"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6) صحة النظام -->
+    <div class="modal fade" id="systemHealthModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-secondary text-white">
+            <h5 class="modal-title"><i class="fas fa-heartbeat me-2"></i>صحة النظام</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="systemHealthContent"><small class="text-muted">جارِ التحميل...</small></div>
+            <button class="btn btn-outline-secondary w-100 mt-2" id="reloadHealthBtn"><i class="fas fa-redo me-1"></i>تحديث</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7) الردود التلقائية -->
+    <div class="modal fade" id="autoRepliesModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-info text-white">
+            <h5 class="modal-title"><i class="fas fa-reply-all me-2"></i>الردود التلقائية</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <!-- مفتاح التشغيل العام -->
+            <div class="form-check form-switch mb-3 fs-6">
+              <input class="form-check-input" type="checkbox" id="arEnabledToggle" checked>
+              <label class="form-check-label fw-bold" for="arEnabledToggle">
+                تفعيل الردود التلقائية
+              </label>
+              <div class="form-text">عند الإيقاف لن يرد البرنامج تلقائياً على أي رسالة.</div>
+            </div>
+
+            <hr>
+
+            <!-- نموذج إضافة قاعدة جديدة -->
+            <div class="card border-info mb-3">
+              <div class="card-header bg-info bg-opacity-10 fw-bold">
+                <i class="fas fa-plus-circle me-1"></i> إضافة قاعدة رد جديدة
+              </div>
+              <div class="card-body">
+                <div class="mb-2">
+                  <label class="form-label small mb-1">الكلمة/النص المفتاحي</label>
+                  <input type="text" class="form-control" id="arNewKeyword" placeholder="مثال: السلام عليكم">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small mb-1">نص الرد</label>
+                  <textarea class="form-control" id="arNewReply" rows="2" placeholder="مثال: وعليكم السلام، أهلاً بك 🌹"></textarea>
+                </div>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1">نوع المطابقة</label>
+                    <select class="form-select" id="arNewMatch">
+                      <option value="contains">يحتوي على (افتراضي)</option>
+                      <option value="exact">مطابقة كاملة</option>
+                      <option value="regex">تعبير نمطي (Regex)</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1">نطاق التطبيق</label>
+                    <select class="form-select" id="arNewScope">
+                      <option value="all">كل المحادثات</option>
+                      <option value="private">المحادثات الخاصة فقط</option>
+                      <option value="groups">المجموعات/القنوات فقط</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="btn btn-info text-white w-100 mt-3" id="arAddBtn">
+                  <i class="fas fa-plus me-1"></i> إضافة القاعدة
+                </button>
+              </div>
+            </div>
+
+            <!-- قائمة القواعد الموجودة -->
+            <h6 class="fw-bold mb-2">
+              <i class="fas fa-list me-1"></i> القواعد الحالية
+              (<span id="arRulesCount">0</span>)
+            </h6>
+            <div id="arRulesList">
+              <small class="text-muted">جارِ التحميل…</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ============== Helpers ==============
+      async function apiCall(url, method = 'GET', body = null) {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(url, opts);
+        return res.json();
+      }
+      function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+      // ============== 1) نظام التعلم الذكي ==============
+      async function loadLearningStatus() {
+        const r = await apiCall('/api/learning/status');
+        if (r.success) {
+          document.getElementById('learningToggle').checked = r.active;
+          const b = document.getElementById('learningStatusBadge');
+          b.textContent = r.active ? 'مفعل' : 'غير مفعل';
+          b.className = 'badge ' + (r.active ? 'bg-success' : 'bg-secondary');
+        }
+      }
+      async function loadLearningServices() {
+        const r = await apiCall('/api/learning/services');
+        const list = document.getElementById('learningServicesList');
+        if (r.success && r.services && Object.keys(r.services).length) {
+          list.innerHTML = Object.entries(r.services).map(([name, info]) => `
+            <div class="d-flex justify-content-between align-items-start border rounded p-2 mb-2">
+              <div><strong>${escapeHtml(name)}</strong><br><small class="text-muted">${escapeHtml(info.description || '')}</small></div>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteLearningService('${escapeHtml(name)}')"><i class="fas fa-trash"></i></button>
+            </div>`).join('');
+        } else {
+          list.innerHTML = '<small class="text-muted">لا توجد خدمات مسجلة بعد</small>';
+        }
+      }
+      async function loadLearningUnknown() {
+        const r = await apiCall('/api/learning/unknown_requests');
+        const list = document.getElementById('learningUnknownList');
+        if (r.success && r.requests && r.requests.length) {
+          list.innerHTML = r.requests.map(u => `
+            <div class="border-start border-warning border-3 ps-2 mb-2">
+              <div><strong>${escapeHtml(u.sender || '')}</strong> <small class="text-muted">${escapeHtml(u.time || '')}</small></div>
+              <div>${escapeHtml(u.text || '')}</div>
+            </div>`).join('');
+        } else {
+          list.innerHTML = '<small class="text-muted">لا توجد طلبات</small>';
+        }
+      }
+      async function deleteLearningService(name) {
+        await apiCall('/api/learning/delete_service', 'POST', { name });
+        loadLearningServices();
+      }
+      document.getElementById('learningToggle').addEventListener('change', async e => {
+        await apiCall('/api/learning/toggle', 'POST', { active: e.target.checked });
+        loadLearningStatus();
+      });
+      document.getElementById('addLearningService').addEventListener('click', async () => {
+        const name = document.getElementById('learningServiceName').value.trim();
+        const description = document.getElementById('learningServiceDesc').value.trim();
+        const keywords = document.getElementById('learningServiceKeywords').value.split(',').map(k => k.trim()).filter(Boolean);
+        if (!name || !description) { alert('الاسم والوصف مطلوبان'); return; }
+        const r = await apiCall('/api/learning/add_service', 'POST', { name, description, keywords });
+        alert(r.message || '');
+        if (r.success) {
+          document.getElementById('learningServiceName').value = '';
+          document.getElementById('learningServiceDesc').value = '';
+          document.getElementById('learningServiceKeywords').value = '';
+          loadLearningServices();
+        }
+      });
+      document.getElementById('clearUnknownBtn').addEventListener('click', async () => {
+        await apiCall('/api/learning/clear_unknown', 'POST');
+        loadLearningUnknown();
+      });
+      document.getElementById('learningModal').addEventListener('show.bs.modal', () => {
+        loadLearningStatus(); loadLearningServices(); loadLearningUnknown();
+      });
+
+      // ============== 2) النشر الدوري ==============
+      function rotUpdateSummary() {
+        const v = parseInt(document.getElementById('rotInterval').value || '0');
+        const u = document.getElementById('rotIntervalUnit').value;
+        const labels = { seconds: 'ثانية', minutes: 'دقيقة', hours: 'ساعة' };
+        document.getElementById('rotIntervalSummary').textContent = `${v} ${labels[u] || ''}`;
+      }
+      function rotIntervalToMinutes() {
+        const v = parseInt(document.getElementById('rotInterval').value || '5');
+        const u = document.getElementById('rotIntervalUnit').value;
+        if (u === 'seconds') return Math.max(1, Math.round(v / 60 * 100) / 100);
+        if (u === 'hours')   return v * 60;
+        return v;
+      }
+      function rotMinutesToBest(mins) {
+        if (mins >= 60 && mins % 60 === 0) return { v: mins / 60, u: 'hours' };
+        if (mins < 1) return { v: Math.max(1, Math.round(mins * 60)), u: 'seconds' };
+        return { v: mins, u: 'minutes' };
+      }
+      // ===== Countdown state =====
+      var __rotCountdownTimer = null;
+      var __rotCountdownEnd = 0; // unix ms when next send happens
+      var __rotCountdownCycle = 0; // total seconds for current cycle (for progress bar)
+
+      function rotFormatTime(secs) {
+        secs = Math.max(0, Math.floor(secs));
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        const pad = n => String(n).padStart(2, '0');
+        return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+      }
+
+      function rotUpdateCountdownTick() {
+        const now = Date.now();
+        const remainSec = (__rotCountdownEnd - now) / 1000;
+        const disp = document.getElementById('rotCountdownDisplay');
+        const bar = document.getElementById('rotCountdownBar');
+        if (!disp) return;
+        if (remainSec <= 0) {
+          disp.textContent = '00:00';
+          if (bar) bar.style.width = '100%';
+        } else {
+          disp.textContent = rotFormatTime(remainSec);
+          if (bar && __rotCountdownCycle > 0) {
+            const elapsed = __rotCountdownCycle - remainSec;
+            const pct = Math.min(100, Math.max(0, (elapsed / __rotCountdownCycle) * 100));
+            bar.style.width = pct + '%';
+          }
+        }
+      }
+
+      function rotStartCountdown(remainSec, cycleSec) {
+        rotStopCountdown();
+        __rotCountdownEnd = Date.now() + remainSec * 1000;
+        __rotCountdownCycle = cycleSec || remainSec || 0;
+        document.getElementById('rotCountdownCard').style.display = 'block';
+        rotUpdateCountdownTick();
+        __rotCountdownTimer = setInterval(rotUpdateCountdownTick, 1000);
+      }
+
+      function rotStopCountdown() {
+        if (__rotCountdownTimer) {
+          clearInterval(__rotCountdownTimer);
+          __rotCountdownTimer = null;
+        }
+        const card = document.getElementById('rotCountdownCard');
+        if (card) card.style.display = 'none';
+      }
+
+      async function loadRotatingStatus() {
+        const r = await apiCall('/api/rotating/status');
+        if (r.success) {
+          const b = document.getElementById('rotStatusBadge');
+          b.textContent = r.active ? 'يعمل الآن' : 'متوقف';
+          b.className = 'badge ' + (r.active ? 'bg-success' : 'bg-secondary');
+          (r.messages || []).slice(0, 5).forEach((m, i) => {
+            const el = document.getElementById('rotMsg' + (i + 1));
+            if (el) el.value = m || '';
+          });
+          document.getElementById('rotGroups').value = (r.groups || []).join('\n');
+          const best = rotMinutesToBest(r.interval || 5);
+          document.getElementById('rotInterval').value = best.v;
+          document.getElementById('rotIntervalUnit').value = best.u;
+          rotUpdateSummary();
+
+          if (r.active && (r.next_send_in !== null && r.next_send_in !== undefined)) {
+            const cycle = r.interval_seconds || (r.interval ? Math.max(60, Math.round(r.interval * 60)) : r.next_send_in);
+            rotStartCountdown(r.next_send_in, cycle);
+          } else if (r.active) {
+            // Active but no countdown info yet (first cycle running)
+            const card = document.getElementById('rotCountdownCard');
+            if (card) card.style.display = 'block';
+            const disp = document.getElementById('rotCountdownDisplay');
+            if (disp) disp.textContent = 'جارٍ الإرسال...';
+          } else {
+            rotStopCountdown();
+          }
+        }
+      }
+
+      // Auto-poll countdown info while modal is open
+      var __rotPollTimer = null;
+      function rotStartPolling() {
+        if (__rotPollTimer) clearInterval(__rotPollTimer);
+        __rotPollTimer = setInterval(loadRotatingStatus, 15000);
+      }
+      function rotStopPolling() {
+        if (__rotPollTimer) { clearInterval(__rotPollTimer); __rotPollTimer = null; }
+      }
+      function rotCollect() {
+        const messages = [1,2,3,4,5].map(i => document.getElementById('rotMsg' + i).value);
+        const groups = document.getElementById('rotGroups').value.split('\n').map(s => s.trim()).filter(Boolean);
+        const interval = rotIntervalToMinutes();
+        return { messages, groups, interval };
+      }
+      document.getElementById('rotInterval').addEventListener('input', rotUpdateSummary);
+      document.getElementById('rotIntervalUnit').addEventListener('change', rotUpdateSummary);
+      document.querySelectorAll('.rot-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('rotInterval').value = btn.dataset.val;
+          document.getElementById('rotIntervalUnit').value = btn.dataset.unit;
+          rotUpdateSummary();
+        });
+      });
+      document.getElementById('rotSaveBtn').addEventListener('click', async () => {
+        const r = await apiCall('/api/rotating/save', 'POST', rotCollect());
+        alert(r.message || '');
+      });
+      document.getElementById('rotStartBtn').addEventListener('click', async () => {
+        await apiCall('/api/rotating/save', 'POST', rotCollect());
+        const r = await apiCall('/api/rotating/start', 'POST');
+        alert(r.message || ''); loadRotatingStatus();
+      });
+      document.getElementById('rotStopBtn').addEventListener('click', async () => {
+        const r = await apiCall('/api/rotating/stop', 'POST');
+        alert(r.message || '');
+        rotStopCountdown();
+        loadRotatingStatus();
+      });
+      document.getElementById('rotatingModal').addEventListener('show.bs.modal', () => {
+        loadRotatingStatus();
+        rotStartPolling();
+      });
+      document.getElementById('rotatingModal').addEventListener('hide.bs.modal', () => {
+        rotStopPolling();
+      });
+
+      // ============== 3) البحث في القنوات العامة ==============
+      document.getElementById('searchPublicBtn').addEventListener('click', async () => {
+        const query = document.getElementById('searchPublicQuery').value.trim();
+        const limit = parseInt(document.getElementById('searchPublicLimit').value || '50');
+        const out = document.getElementById('searchPublicResults');
+        if (!query) { out.innerHTML = '<div class="alert alert-warning">يرجى كتابة نص للبحث</div>'; return; }
+        out.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x text-info"></i></div>';
+        const r = await apiCall('/api/search_public_channels', 'POST', { query, limit });
+        if (!r.success) { out.innerHTML = `<div class="alert alert-danger">${escapeHtml(r.message || 'فشل البحث')}</div>`; return; }
+        const items = r.results || r.channels || r.data || [];
+        if (!items.length) { out.innerHTML = '<div class="alert alert-secondary">لا توجد نتائج</div>'; return; }
+        out.innerHTML = items.map(it => `
+          <div class="border rounded p-2 mb-2">
+            <div><strong>${escapeHtml(it.title || it.name || it.username || 'بدون اسم')}</strong></div>
+            <small class="text-muted">${escapeHtml(it.username ? '@' + it.username : '')}</small>
+            ${it.url ? `<div><a href="${escapeHtml(it.url)}" target="_blank">${escapeHtml(it.url)}</a></div>` : ''}
+          </div>`).join('');
+      });
+
+      // ============== 4) البحث في روابطي ==============
+      document.getElementById('searchMyLinksBtn').addEventListener('click', async () => {
+        const days = parseInt(document.getElementById('myLinksDays').value || '60');
+        const out = document.getElementById('myLinksResults');
+        out.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x text-warning"></i><div class="small mt-2 text-muted">قد يستغرق دقائق...</div></div>';
+        const r = await apiCall('/api/search_my_links', 'POST', { days });
+        if (!r.success) { out.innerHTML = `<div class="alert alert-danger">${escapeHtml(r.message || 'فشل البحث')}</div>`; return; }
+        const items = r.links || [];
+        if (!items.length) { out.innerHTML = '<div class="alert alert-secondary">لم يتم العثور على روابط</div>'; return; }
+        out.innerHTML = `<div class="alert alert-success">${items.length} رابط</div>` + items.map(l => `
+          <div class="border rounded p-2 mb-2">
+            <div><a href="${escapeHtml(l.url)}" target="_blank">${escapeHtml(l.url)}</a></div>
+            <small class="text-muted">من: ${escapeHtml(l.chat_title || '')} • ${escapeHtml(l.date || '')}</small>
+          </div>`).join('');
+      });
+
+      // ============== 5) الانضمام التلقائي المتقدم ==============
+      const advBtn = document.getElementById('advJoinBtn');
+      const advOut = document.getElementById('advJoinResults');
+      const advSummary = document.getElementById('advJoinSummary');
+      const advDetails = document.getElementById('advJoinDetails');
+      const advList = document.getElementById('advJoinDetailsList');
+      const advBar = document.getElementById('advProgressBar');
+      const advProgressText = document.getElementById('advProgressText');
+      const advRemainingText = document.getElementById('advRemainingText');
+      const advCntS = document.getElementById('advCountSuccess');
+      const advCntA = document.getElementById('advCountAlready');
+      const advCntF = document.getElementById('advCountFail');
+      const advCntT = document.getElementById('advCountTotal');
+
+      const advFailBreakdown = document.getElementById('advFailBreakdown');
+      const advFailBreakdownList = document.getElementById('advFailBreakdownList');
+
+      function advResetUI(total) {
+        advSummary.classList.remove('d-none');
+        advDetails.classList.remove('d-none');
+        advFailBreakdown.classList.add('d-none');
+        advFailBreakdownList.innerHTML = '';
+        advList.innerHTML = '';
+        advBar.style.width = '0%';
+        advBar.textContent = '0%';
+        advBar.classList.remove('bg-success');
+        advBar.classList.add('bg-danger', 'progress-bar-animated');
+        advProgressText.textContent = `0 / ${total}`;
+        advRemainingText.textContent = `متبقي: ${total}`;
+        advCntS.textContent = '0';
+        advCntA.textContent = '0';
+        advCntF.textContent = '0';
+        advCntT.textContent = String(total);
+      }
+
+      function advRenderFailBreakdown(breakdown) {
+        if (!breakdown || !breakdown.length) {
+          advFailBreakdown.classList.add('d-none');
+          return;
+        }
+        advFailBreakdown.classList.remove('d-none');
+        advFailBreakdownList.innerHTML = breakdown.map((entry, i) => `
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <span class="me-2">${entry.icon || '❌'}</span>
+                <strong>${escapeHtml(entry.reason || 'سبب غير معروف')}</strong>
+              </div>
+              <span class="badge bg-danger rounded-pill">${entry.count}</span>
+            </div>
+            ${entry.links && entry.links.length ? `
+              <button class="btn btn-sm btn-link text-decoration-none p-0 mt-1"
+                      data-bs-toggle="collapse" data-bs-target="#advFailLinks${i}">
+                إظهار الروابط (${entry.links.length})
+              </button>
+              <div class="collapse mt-1" id="advFailLinks${i}">
+                <ul class="small text-muted mb-0 ps-3">
+                  ${entry.links.map(l => `<li class="text-truncate"><a href="${escapeHtml(l)}" target="_blank">${escapeHtml(l)}</a></li>`).join('')}
+                </ul>
+              </div>` : ''}
+          </li>
+        `).join('');
+      }
+
+      function advStatusBadge(status) {
+        if (status === 'success') return '<span class="badge bg-success">نجح</span>';
+        if (status === 'already') return '<span class="badge bg-info text-dark">منضم مسبقاً</span>';
+        if (status === 'failed')  return '<span class="badge bg-danger">فشل</span>';
+        return '<span class="badge bg-secondary"><i class="fas fa-spinner fa-spin"></i> جارٍ</span>';
+      }
+
+      function advRenderItem(item) {
+        let li = document.querySelector(`#advJoinDetailsList li[data-idx="${item.idx}"]`);
+        const innerHTML = `
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div style="min-width:0; flex:1;">
+              <div class="text-truncate">
+                <span class="me-1">${item.icon || ''}</span>
+                <small class="text-muted">[${item.idx}/${item.total}]</small>
+                <a href="${escapeHtml(item.url)}" target="_blank" class="text-decoration-none">${escapeHtml(item.url)}</a>
+              </div>
+              <small class="${item.status === 'failed' ? 'text-danger' : (item.status === 'success' ? 'text-success' : (item.status === 'already' ? 'text-info' : 'text-muted'))}">
+                ${escapeHtml(item.reason || '')}
+              </small>
+              ${item.raw_error ? `<div><small class="text-muted fst-italic">تفاصيل: ${escapeHtml(item.raw_error)}</small></div>` : ''}
+            </div>
+            <div>${advStatusBadge(item.status)}</div>
+          </div>`;
+        if (!li) {
+          li = document.createElement('li');
+          li.className = 'list-group-item';
+          li.setAttribute('data-idx', String(item.idx));
+          advList.appendChild(li);
+        }
+        li.innerHTML = innerHTML;
+        // قم بتمرير العنصر إلى المنظر
+        li.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
+      function advUpdateCounts(c) {
+        if (!c) return;
+        advCntS.textContent = String(c.success || 0);
+        advCntA.textContent = String(c.already || 0);
+        advCntF.textContent = String(c.fail || 0);
+        const done = c.done || 0;
+        const total = c.total || 0;
+        advProgressText.textContent = `${done} / ${total}`;
+        const remaining = Math.max(0, total - done);
+        advRemainingText.textContent = `متبقي: ${remaining}`;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        advBar.style.width = `${pct}%`;
+        advBar.textContent = `${pct}%`;
+      }
+
+      // Socket.IO listeners (يستخدم socket المُهيَّأ في app.js)
+      function advAttachSocket() {
+        const s = window.socket;
+        if (!s) {
+          // socket لم يُهيَّأ بعد — أعد المحاولة قريباً
+          setTimeout(advAttachSocket, 500);
+          return false;
+        }
+        if (window._advSocketBound) return true;
+        s.on('auto_join_started', (d) => {
+          advResetUI(d.total || 0);
+        });
+        s.on('auto_join_progress', (item) => {
+          advRenderItem(item);
+          if (item.counts) advUpdateCounts(item.counts);
+        });
+        s.on('auto_join_completed', (res) => {
+          advUpdateCounts({
+            success: res.success, already: res.already, fail: res.fail,
+            done: res.total, total: res.total
+          });
+          advBar.classList.remove('progress-bar-animated', 'bg-danger');
+          advBar.classList.add('bg-success');
+          advBtn.disabled = false;
+          advBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>بدء الانضمام المتقدم';
+          advOut.innerHTML = `<div class="alert alert-success mb-0">
+            🎉 اكتمل الانضمام — ✅ ${res.success} نجح | 📌 ${res.already} منضم مسبقاً | ❌ ${res.fail} فشل (المجموع ${res.total})
+          </div>`;
+          // عرض ملخّص أسباب الفشل
+          advRenderFailBreakdown(res.fail_breakdown || []);
+        });
+        window._advSocketBound = true;
+        return true;
+      }
+      // محاولة الربط فور التحميل ومرة أخرى عند فتح المودال (في حال تأخر تهيئة socket)
+      advAttachSocket();
+
+      advBtn.addEventListener('click', async () => {
+        const links = document.getElementById('advLinks').value.split('\n').map(s => s.trim()).filter(Boolean);
+        const delay = parseInt(document.getElementById('advDelay').value || '3');
+        if (!links.length) { advOut.innerHTML = '<div class="alert alert-warning">أضف رابط واحد على الأقل</div>'; return; }
+        advAttachSocket();
+        advOut.innerHTML = '<div class="text-center py-2"><i class="fas fa-spinner fa-spin fa-lg text-danger me-2"></i> جارٍ بدء الانضمام…</div>';
+        advBtn.disabled = true;
+        advBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>قيد التنفيذ…';
+        const r = await apiCall('/api/auto_join/advanced', 'POST', { links, delay });
+        if (!r.success) {
+          advOut.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(r.message || 'فشل البدء')}</div>`;
+          advBtn.disabled = false;
+          advBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>بدء الانضمام المتقدم';
+          return;
+        }
+        advResetUI(r.total || links.length);
+        advOut.innerHTML = `<div class="alert alert-info mb-0">${escapeHtml(r.message)}</div>`;
+      });
+
+      // ============== 6) صحة النظام ==============
+      async function loadSystemHealth() {
+        const out = document.getElementById('systemHealthContent');
+        out.innerHTML = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin fa-2x text-secondary"></i></div>';
+        try {
+          const r = await fetch('/api/system_health').then(x => x.json());
+          out.innerHTML = `<pre class="bg-dark text-success p-3 rounded" style="max-height:400px;overflow:auto;">${escapeHtml(JSON.stringify(r, null, 2))}</pre>`;
+        } catch (e) {
+          out.innerHTML = `<div class="alert alert-danger">${escapeHtml(e.message)}</div>`;
+        }
+      }
+      function checkSystemHealth() {
+        const m = new bootstrap.Modal(document.getElementById('systemHealthModal'));
+        m.show();
+        loadSystemHealth();
+      }
+      document.getElementById('reloadHealthBtn').addEventListener('click', loadSystemHealth);
+
+      // ============== 7) الردود التلقائية ==============
+      const arEnabledToggle  = document.getElementById('arEnabledToggle');
+      const arNewKeyword     = document.getElementById('arNewKeyword');
+      const arNewReply       = document.getElementById('arNewReply');
+      const arNewMatch       = document.getElementById('arNewMatch');
+      const arNewScope       = document.getElementById('arNewScope');
+      const arAddBtn         = document.getElementById('arAddBtn');
+      const arRulesList      = document.getElementById('arRulesList');
+      const arRulesCount     = document.getElementById('arRulesCount');
+
+      const ar_scopeLabel = (s) => ({
+        'all': 'كل المحادثات', 'private': 'خاص فقط', 'groups': 'مجموعات/قنوات'
+      }[s] || 'كل المحادثات');
+      const ar_matchLabel = (m) => ({
+        'contains': 'يحتوي', 'exact': 'مطابقة كاملة', 'regex': 'Regex'
+      }[m] || 'يحتوي');
+
+      function arRender(rules) {
+        rules = rules || [];
+        arRulesCount.textContent = String(rules.length);
+        if (!rules.length) {
+          arRulesList.innerHTML = '<div class="alert alert-secondary mb-0"><i class="fas fa-info-circle me-1"></i> لا توجد قواعد بعد. أضف أول قاعدة من الأعلى.</div>';
+          return;
+        }
+        arRulesList.innerHTML = rules.map((r, i) => `
+          <div class="border rounded p-2 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div style="min-width:0; flex:1;">
+                <div class="fw-bold text-info">
+                  <i class="fas fa-key me-1"></i>${escapeHtml(r.keyword)}
+                </div>
+                <div class="mt-1 small">
+                  <i class="fas fa-arrow-left text-success me-1"></i>${escapeHtml(r.reply)}
+                </div>
+                <div class="mt-1">
+                  <span class="badge bg-secondary me-1">${escapeHtml(ar_matchLabel(r.match))}</span>
+                  <span class="badge bg-light text-dark border">${escapeHtml(ar_scopeLabel(r.scope))}</span>
+                  ${r.used_count ? `<span class="badge bg-success bg-opacity-75">استُخدمت ${r.used_count}×</span>` : ''}
+                  ${r.last_used ? `<small class="text-muted ms-1">آخر استخدام: ${escapeHtml(r.last_used)}</small>` : ''}
+                </div>
+              </div>
+              <div class="d-flex flex-column gap-1">
+                <button class="btn btn-sm btn-outline-danger" data-ar-del="${i}" title="حذف">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>`).join('');
+
+        arRulesList.querySelectorAll('[data-ar-del]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.getAttribute('data-ar-del'));
+            if (!confirm('حذف هذه القاعدة؟')) return;
+            const r = await apiCall('/api/delete_auto_reply', 'POST', { index: idx });
+            if (r.success) arRender(r.auto_replies);
+            else alert(r.message || 'تعذر الحذف');
+          });
+        });
+      }
+
+      async function arLoad() {
+        try {
+          const r = await apiCall('/api/get_auto_replies');
+          if (r.success) {
+            arEnabledToggle.checked = (r.enabled !== false);
+            arRender(r.auto_replies);
+          }
+        } catch (e) {
+          arRulesList.innerHTML = `<div class="alert alert-danger">${escapeHtml(e.message || 'فشل التحميل')}</div>`;
+        }
+      }
+
+      arEnabledToggle.addEventListener('change', async () => {
+        await apiCall('/api/toggle_auto_reply', 'POST', { enabled: arEnabledToggle.checked });
+      });
+
+      arAddBtn.addEventListener('click', async () => {
+        const keyword = arNewKeyword.value.trim();
+        const reply   = arNewReply.value.trim();
+        const match   = arNewMatch.value;
+        const scope   = arNewScope.value;
+        if (!keyword || !reply) {
+          alert('الكلمة المفتاحية ونص الرد مطلوبان');
+          return;
+        }
+        arAddBtn.disabled = true;
+        const r = await apiCall('/api/add_auto_reply', 'POST', { keyword, reply, match, scope });
+        arAddBtn.disabled = false;
+        if (r.success) {
+          arNewKeyword.value = '';
+          arNewReply.value = '';
+          arRender(r.auto_replies);
+        } else {
+          alert(r.message || 'تعذر الإضافة');
+        }
+      });
+
+      // أعد التحميل كلما فُتح المودال (وعلى أول تحميل)
+      const _arModalEl = document.getElementById('autoRepliesModal');
+      if (_arModalEl) _arModalEl.addEventListener('show.bs.modal', arLoad);
+      arLoad();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="/static/js/app.js"></script>
+
+    <!-- PWA و Service Worker -->
+    <script>
+        // متغيرات PWA
+        const installAppBtn = document.getElementById('installAppBtn');
+
+        // تسجيل Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('✅ Service Worker registered successfully:', registration.scope);
+
+                        // التحقق من وجود تحديثات
+                        registration.addEventListener('updatefound', function() {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', function() {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // عرض إشعار التحديث
+                                    showUpdateNotification();
+                                }
+                            });
+                        });
+                    })
+                    .catch(function(err) {
+                        console.error('❌ Service Worker registration failed:', err);
+                    });
+            });
+        }
+
+        // معالجة حدث beforeinstallprompt
+        window.addEventListener('beforeinstallprompt', function(e) {
+            console.log('📱 PWA: Install prompt triggered');
+            e.preventDefault();
+            globalDeferredPrompt = e;
+
+            // إظهار زر التثبيت
+            installAppBtn.style.display = 'inline-block';
+
+            // تأثير لفت النظر
+            installAppBtn.classList.add('animate__animated', 'animate__pulse');
+        });
+
+        // معالجة النقر على زر التثبيت
+        installAppBtn.addEventListener('click', async function() {
+            if (!globalDeferredPrompt) {
+                showNotification('التطبيق مثبت بالفعل أو غير متاح للتثبيت', 'info');
+                return;
+            }
+
+            try {
+                // عرض نافذة التثبيت
+                globalDeferredPrompt.prompt();
+
+                // انتظار اختيار المستخدم
+                const { outcome } = await globalDeferredPrompt.userChoice;
+
+                if (outcome === 'accepted') {
+                    console.log('✅ PWA: User accepted the install prompt');
+                    showNotification('🎉 تم تثبيت التطبيق بنجاح!', 'success');
+
+                    // إخفاء زر التثبيت
+                    installAppBtn.style.display = 'none';
+                } else {
+                    console.log('❌ PWA: User dismissed the install prompt');
+                    showNotification('تم إلغاء التثبيت', 'warning');
+                }
+
+                globalDeferredPrompt = null;
+            } catch (error) {
+                console.error('❌ PWA: Error during installation:', error);
+                showNotification('حدث خطأ أثناء التثبيت', 'error');
+            }
+        });
+
+        // معالجة حدث التثبيت الناجح
+        window.addEventListener('appinstalled', function(e) {
+            console.log('🎉 PWA: App installed successfully');
+            showNotification('تم تثبيت التطبيق بنجاح! يمكنك الآن الوصول إليه من الشاشة الرئيسية', 'success');
+            installAppBtn.style.display = 'none';
+
+            // إرسال إحصائية التثبيت
+            if (window.gtag) {
+                gtag('event', 'pwa_install', {
+                    'event_category': 'PWA',
+                    'event_label': 'App Installed'
+                });
+            }
+        });
+
+        // دالة عرض إشعار التحديث
+        function showUpdateNotification() {
+            const updateDiv = document.createElement('div');
+            updateDiv.className = 'alert alert-info alert-dismissible fade show position-fixed';
+            updateDiv.style.cssText = 'top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; max-width: 400px;';
+            updateDiv.innerHTML = `
+                <strong>🔄 تحديث متاح!</strong>
+                <p class="mb-2">يتوفر إصدار جديد من التطبيق</p>
+                <button class="btn btn-sm btn-primary me-2" onclick="updateApp()">تحديث الآن</button>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(updateDiv);
+        }
+
+        // دالة تحديث التطبيق
+        function updateApp() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistration().then(function(registration) {
+                    if (registration && registration.waiting) {
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        window.location.reload();
+                    }
+                });
+            }
+        }
+
+        // التحقق من إمكانية التثبيت على iOS
+        function checkIOSInstall() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isStandalone = window.navigator.standalone;
+
+            if (isIOS && !isStandalone) {
+                // عرض تعليمات التثبيت لـ iOS
+                const iosInstructions = document.createElement('div');
+                iosInstructions.className = 'alert alert-info mt-3';
+                iosInstructions.innerHTML = `
+                    <h6><i class="fab fa-apple"></i> للتثبيت على iOS:</h6>
+                    <small>
+                        1️⃣ اضغط على زر المشاركة <i class="fas fa-share"></i><br>
+                        2️⃣ اختر "إضافة إلى الشاشة الرئيسية"<br>
+                        3️⃣ اضغط "إضافة"
+                    </small>
+                `;
+                installAppBtn.parentNode.appendChild(iosInstructions);
+            }
+        }
+
+        // تشغيل فحص iOS عند تحميل الصفحة
+        window.addEventListener('load', checkIOSInstall);
+
+        // معالجة التنبيهات المخصصة
+        function showPWANotification(title, body, icon) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: body,
+                    icon: icon || '/static/icons/icon-192x192.png',
+                    badge: '/static/icons/icon-72x72.png',
+                    vibrate: [100, 50, 100]
+                });
+            }
+        }
+
+        // طلب إذن التنبيهات
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then(function(permission) {
+                    if (permission === 'granted') {
+                        showNotification('تم تفعيل التنبيهات بنجاح', 'success');
+                    }
+                });
+            }
+        }
+
+        // تفعيل طلب التنبيهات عند أول تفاعل
+        document.addEventListener('click', function() {
+            requestNotificationPermission();
+        }, { once: true });
+
+        console.log('✅ PWA: Scripts loaded successfully');
+
+        // =========================== 
+        // نظام التبديل بين المستخدمين - مبسط ومحسن
+        // ===========================
+        
+        var globalCurrentUserId = '{{ current_user.id }}';
+        var globalDeferredPrompt = null;
+        
+        console.log('✅ Multi-user system initialized');
+
+        
+        console.log('✅ Auto join system initialized');
+        
+    </script>
+</body>
+</html>
