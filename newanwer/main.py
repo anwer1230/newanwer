@@ -5,8 +5,12 @@ import signal
 import logging
 
 def free_port(port):
-    """تحرير المنفذ إذا كان مشغولاً"""
+    """تحرير المنفذ إذا كان مشغولاً (للبيئات المحلية فقط)"""
     try:
+        # تخطي على Render
+        if os.environ.get('RENDER'):
+            return
+        
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
