@@ -15,6 +15,7 @@ def randomize_message(text):
     """إضافة مسافة عشوائية أو رمز غير مرئي لتنويع الرسالة وتفادي اكتشاف التكرار"""
     rnd = random.choice(['', ' ', '  ', '\u200B', '\u200C'])
     return text + rnd
+
 from threading import Lock
 from flask import Flask, session, request, render_template, jsonify, redirect
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -207,40 +208,49 @@ class AlertQueue:
             logger.error(f"Failed to send alert for user {user_id}: {str(e)}")
 
     def _send_to_saved_messages(self, user_id, alert_data):
-        """إرسال التنبيه للرسائل المحفوظة"""
+        """إرسال التنبيه للرسائل المحفوظة في تيليجرام"""
         try:
             with USERS_LOCK:
-                if user_id in USERS:
-                    client_manager = USERS[user_id].get('client_manager')
-                    if client_manager and client_manager.client:
-                        notification_msg = f"""🚨 تنبيه فوري - مراقبة شاملة للحساب
+                client_manager = USERS.get(user_id, {}).get('client_manager')
 
-📝 الكلمة المراقبة: {alert_data['keyword']}
-📊 المصدر: {alert_data['group']}
-👤 المرسل: {alert_data.get('sender', 'غير معروف')}
-🕐 وقت الرسالة: {alert_data.get('message_time', '')}
-🔗 معرف الرسالة: {alert_data.get('message_id', '')}
+            if not client_manager or not client_manager.client:
+                logger.warning(f"⚠️ No client available to send alert for user {user_id}")
+                return
 
-💬 نص الرسالة:
-{alert_data.get('message', '')[:500]}{'...' if len(alert_data.get('message', '')) > 500 else ''}
+            # بناء الرسالة بالتنسيق المطلوب
+            keyword    = alert_data.get('keyword', '')
+            group_name = alert_data.get('group', '')
+            group_link = alert_data.get('group_link') or ''
+            sender     = alert_data.get('sender', 'غير معروف')
+            msg_time   = alert_data.get('message_time', alert_data.get('timestamp', ''))
+            full_text  = alert_data.get('full_message') or alert_data.get('message', '')
 
---- تنبيه فوري من المراقبة الشاملة اللحظية لكامل الحساب"""
+            link_line = f"\n🔗 الرابط: {group_link}" if group_link else ""
 
-                        # تشغيل في thread منفصل لضمان عدم التأخير
-                        def send_alert_async():
-                            try:
-                                if hasattr(client_manager, 'run_coroutine'):
-                                    client_manager.run_coroutine(
-                                        client_manager.client.send_message('me', notification_msg)
-                                    )
-                                    logger.info(f"✅ Alert sent to saved messages for user {user_id}")
-                                else:
-                                    logger.warning(f"⚠️ No run_coroutine method available for user {user_id}")
-                            except Exception as send_error:
-                                logger.error(f"❌ Failed to send alert message: {str(send_error)}")
+            notification_msg = (
+                f"🚨 تنبيه مراقبة\n\n"
+                f"🔑 الكلمة: {keyword}\n"
+                f"👥 المجموعة: {group_name}"
+                f"{link_line}\n"
+                f"👤 المرسل: {sender}\n"
+                f"🕐 الوقت: {msg_time}\n\n"
+                f"... الرسالة:\n{full_text}"
+            )
 
-                        # تشغيل في thread منفصل
-                        threading.Thread(target=send_alert_async, daemon=True).start()
+            loop = getattr(client_manager, 'loop', None)
+            if not loop or not loop.is_running():
+                logger.warning(f"⚠️ Event loop not running for user {user_id} — cannot send alert")
+                return
+
+            # إرسال بدون حجب (fire-and-forget آمن)
+            async def _do_send():
+                try:
+                    await client_manager.client.send_message('me', notification_msg, link_preview=False)
+                    logger.info(f"✅ Alert sent to Telegram saved messages for user {user_id}: '{keyword}'")
+                except Exception as e:
+                    logger.error(f"❌ Failed to send Telegram alert for user {user_id}: {e}")
+
+            asyncio.run_coroutine_threadsafe(_do_send(), loop)
 
         except Exception as e:
             logger.error(f"Failed to send to saved messages: {str(e)}")
@@ -415,6 +425,15 @@ def load_settings(user_id):
         logger.error(f"Error loading settings for {user_id}: {str(e)}")
         return {}
 
+def _clean_group_entry(raw: str) -> str:
+    """تنظيف إدخال المجموعة من الرموز الزخرفية (· • * - – — ◾ ✓ ✦ ● …) والمسافات الزائدة."""
+    import re
+    cleaned = raw.strip()
+    # إزالة الرموز الزخرفية من البداية (نقاط الرصاص، النجوم، الشرطات، الأرقام+نقطة، …)
+    cleaned = re.sub(r'^[\s\u00b7\u2022\u25cf\u25aa\u25ab\u25fe\u25fd\u2023\u203b\u2043\u2219\*\-\–\—\.\،\,\#\>\|•●◾◾✓✦①②③④⑤⑥⑦⑧⑨⑩\d]+[\s.،:]*', '', cleaned)
+    return cleaned.strip()
+
+
 def dedupe_groups(groups):
     """إزالة الروابط/المجموعات المكررة مع الحفاظ على الترتيب الأصلي.
     يطبّق تطبيعاً بسيطاً: إزالة الفراغات، توحيد بادئة https://t.me و https://telegram.me، وحذف الشرطة المائلة الأخيرة وأي معاملات استعلام."""
@@ -425,7 +444,7 @@ def dedupe_groups(groups):
     for g in groups or []:
         if not g:
             continue
-        original = g.strip()
+        original = _clean_group_entry(g)
         if not original:
             continue
         norm = original.lower()
@@ -499,6 +518,7 @@ class TelegramClientManager:
         self.event_handlers_registered = False
         self.monitored_keywords = []
         self.monitored_groups = []
+        self._processed_msg_ids = set()   # منع تكرار التنبيه لنفس الرسالة
 
     async def send_to_saved_messages(self, text):
         """إرسال رسالة إلى المحادثة المحفوظة (Saved Messages)"""
@@ -546,11 +566,9 @@ class TelegramClientManager:
                         _cache_protection(cache_key, True, reason)
                         return True, reason
             except Exception as iter_err:
-                # المجموعة تمنع جلب المشاركين → نعتبرها محمية احتياطاً
-                reason = 'لا يمكن فحص أعضاء المجموعة (مقيّدة)'
+                # لا يمكن جلب الأعضاء (مجموعة مقيّدة) — نتجاهل ولا نعتبرها محمية
+                # (الاعتبار التلقائي كمحمية يمنع الإرسال لمعظم المجموعات)
                 logger.debug(f"Cannot iterate participants for {chat_id}: {iter_err}")
-                _cache_protection(cache_key, True, reason)
-                return True, reason
 
             _cache_protection(cache_key, False, None)
             return False, None
@@ -600,18 +618,48 @@ class TelegramClientManager:
                 await self.client.connect()
                 self.is_ready.set()
 
-                # تسجيل event handlers
+                # تسجيل event handlers قبل بدء الاستقبال
                 await self._register_event_handlers()
 
-                # الحفاظ على الاتصال
+                # مراقبة stop_flag في الخلفية وقطع الاتصال عند الحاجة
+                async def _watch_stop():
+                    while not self.stop_flag.is_set():
+                        await asyncio.sleep(0.5)
+                    try:
+                        await self.client.disconnect()
+                    except Exception:
+                        pass
+
+                stop_task = asyncio.ensure_future(_watch_stop())
+
+                # Wait until authorized before calling run_until_disconnected
                 while not self.stop_flag.is_set():
-                    await asyncio.sleep(1)
+                    try:
+                        is_auth = await self.client.is_user_authorized()
+                        if is_auth:
+                            try:
+                                await self.client.run_until_disconnected()
+                                break # Disconnected
+                            except Exception as run_err:
+                                logger.warning(f"run_until_disconnected interrupted: {run_err}")
+                                await asyncio.sleep(2)
+                        else:
+                            await asyncio.sleep(1)
+                    except Exception as auth_check_err:
+                        logger.debug(f"Auth check during loop: {auth_check_err}")
+                        await asyncio.sleep(1)
+
+                if not stop_task.done():
+                    stop_task.cancel()
 
         except Exception as e:
             logger.error(f"Client main error: {str(e)}")
         finally:
-            if self.client:
-                await self.client.disconnect()
+            try:
+                if self.client and self.client.is_connected():
+                    await self.client.disconnect()
+            except Exception:
+                pass
 
     async def _register_event_handlers(self):
         """تسجيل event handlers للرسائل الجديدة"""
@@ -619,17 +667,18 @@ class TelegramClientManager:
             if self.event_handlers_registered or not self.client:
                 return
 
-            @self.client.on(events.NewMessage)
+            # بدون فلتر: جميع الرسائل (واردة وصادرة) لمراقبة الكلمات
+            @self.client.on(events.NewMessage())
             async def new_message_handler(event):
                 await self._handle_new_message(event)
-                # ─────────── إضافة ربط البوت التعليمي (التعديل الوحيد في الكود الأصلي) ───────────
-                if learning_manager.is_active(self.user_id):
-                    bot = learning_manager.get_bot(self.user_id)
-                    await bot.handle_incoming_message(event, self)
-                # ───────────────────────────────────────────────────────────────────────────────
+                # الردود التلقائية فقط للرسائل الواردة
+                if not getattr(event.message, 'out', False):
+                    if learning_manager.is_active(self.user_id):
+                        bot = learning_manager.get_bot(self.user_id)
+                        await bot.handle_incoming_message(event, self)
 
             self.event_handlers_registered = True
-            logger.info(f"Event handlers registered for user {self.user_id}")
+            logger.info(f"✅ Event handlers registered for user {self.user_id} (all messages)")
 
         except Exception as e:
             logger.error(f"Failed to register event handlers: {str(e)}")
@@ -638,43 +687,79 @@ class TelegramClientManager:
         """معالجة الرسائل الجديدة الواردة - مراقبة شاملة لكامل الحساب"""
         try:
             message = event.message
-            if not message.text:
+            if not message or not message.text:
                 return
 
-            # تجاهل رسائلنا الصادرة لتفادي ردود ذاتية لا نهائية
-            if getattr(message, 'out', False):
-                return
+            text = message.text or ''
 
             # الحصول على معلومات المحادثة
             chat = await event.get_chat()
             chat_username = getattr(chat, 'username', None)
-            chat_title = getattr(chat, 'title', None)
+            chat_title    = getattr(chat, 'title',    None)
+            chat_id       = getattr(chat, 'id',       None)
 
-            # تحديد معرف المجموعة/المحادثة
-            group_identifier = None
             if chat_username:
                 group_identifier = f"@{chat_username}"
+                group_link       = f"https://t.me/{chat_username}"
             elif chat_title:
                 group_identifier = chat_title
+                group_link       = None
             elif hasattr(chat, 'first_name'):
-                group_identifier = f"محادثة مع {chat.first_name}"
+                fname = getattr(chat, 'first_name', '') or ''
+                lname = getattr(chat, 'last_name',  '') or ''
+                group_identifier = f"{fname} {lname}".strip() or str(chat_id)
+                group_link       = None
             else:
-                group_identifier = f"محادثة {chat.id}"
+                group_identifier = str(chat_id)
+                group_link       = None
 
-            # ===== الردود التلقائية =====
-            await self._handle_auto_reply(event, message, group_identifier)
+            is_outgoing = getattr(message, 'out', False)
+            logger.info(f"📨 [{self.user_id}] {'صادرة' if is_outgoing else 'واردة'} | {group_identifier} | {text[:50]!r}")
 
-            # ===== فحص الكلمات المفتاحية للمراقبة =====
-            # فقط إذا كان هناك كلمات مراقبة محددة
-            if self.monitored_keywords:
-                message_lower = message.text.lower()
-                for keyword in self.monitored_keywords:
-                    keyword_lower = keyword.lower().strip()
-                    if keyword_lower and keyword_lower in message_lower:
-                        await self._trigger_keyword_alert(message, keyword, group_identifier, event)
+            # ===== الردود التلقائية (للرسائل الواردة فقط) =====
+            if not is_outgoing:
+                try:
+                    await self._handle_auto_reply(event, message, group_identifier)
+                except Exception as ar_err:
+                    logger.error(f"Auto-reply error: {ar_err}")
+
+            # ===== فحص الكلمات المفتاحية (جميع الرسائل: واردة وصادرة) =====
+            kw_list = self.monitored_keywords
+            if not kw_list:
+                return
+
+            # ── حماية من التكرار: نفس message_id لا يُعالج مرتين ──
+            msg_uid = f"{getattr(event, 'chat_id', 0)}_{message.id}"
+            if msg_uid in self._processed_msg_ids:
+                return
+            # تنظيف الذاكرة: احتفظ بآخر 500 معرّف فقط
+            if len(self._processed_msg_ids) > 500:
+                self._processed_msg_ids.clear()
+            self._processed_msg_ids.add(msg_uid)
+
+            import unicodedata
+            def _normalize(s):
+                return ''.join(c for c in unicodedata.normalize('NFKD', s)
+                               if unicodedata.category(c) != 'Mn')
+
+            text_clean = _normalize(text).lower()
+            # جمع كل الكلمات المطابقة في قائمة واحدة
+            matched = []
+            for keyword in kw_list:
+                kw = keyword.strip()
+                if kw and _normalize(kw).lower() in text_clean:
+                    matched.append(kw)
+
+            if matched:
+                # كلمة واحدة أو عدة كلمات — تنبيه واحد فقط
+                combined_kw = ' | '.join(matched)
+                logger.info(f"🔑 [{self.user_id}] {len(matched)} كلمة مطابقة: '{combined_kw}' في {group_identifier}")
+                await self._trigger_keyword_alert(
+                    message, combined_kw, group_identifier, group_link, event
+                )
 
         except Exception as e:
-            logger.error(f"Error handling new message: {str(e)}")
+            logger.error(f"Error handling new message: {str(e)}", exc_info=True)
 
     async def _handle_auto_reply(self, event, message, group_identifier):
         """معالجة الردود التلقائية للرسائل الواردة.
@@ -760,44 +845,94 @@ class TelegramClientManager:
         except Exception as e:
             logger.error(f"Auto-reply handler error: {e}")
 
-    async def _trigger_keyword_alert(self, message, keyword, group_identifier, event):
-        """تشغيل تنبيه الكلمة المفتاحية"""
+    async def _trigger_keyword_alert(self, message, keyword, group_identifier, group_link, event):
+        """تشغيل تنبيه الكلمة المفتاحية — إرسال فوري لحظي"""
         try:
-            # الحصول على معلومات المرسل
+            # ── معلومات المرسل ──
             sender_name = "غير معروف"
+            sender_id   = None
+            sender_username = None
             try:
                 sender = await event.get_sender()
                 if sender:
-                    sender_name = getattr(sender, 'first_name', '') or getattr(sender, 'username', '') or str(sender.id)
-            except:
+                    first = getattr(sender, 'first_name', '') or ''
+                    last  = getattr(sender, 'last_name',  '') or ''
+                    uname = getattr(sender, 'username',   '') or ''
+                    sender_id       = getattr(sender, 'id', None)
+                    sender_username = uname
+                    full  = f"{first} {last}".strip()
+                    sender_name = full if full else (f"@{uname}" if uname else str(sender_id))
+            except Exception:
                 pass
 
-            # إنشاء بيانات التنبيه
+            msg_time  = time.strftime('%H:%M:%S', time.localtime(message.date.timestamp()))
+            full_text = message.text or ''
+
+            # ── رابط المجموعة القابل للضغط ──
+            # public group: https://t.me/username/msg_id
+            # private group: https://t.me/c/chat_id/msg_id
+            chat = await event.get_chat()
+            chat_username = getattr(chat, 'username', None)
+            raw_chat_id   = getattr(chat, 'id', None)
+            msg_id        = message.id
+
+            if chat_username:
+                msg_link = f"https://t.me/{chat_username}/{msg_id}"
+            elif raw_chat_id:
+                # إزالة البادئة السالبة -100 للمجموعات الخاصة
+                cid = str(raw_chat_id).lstrip('-')
+                if cid.startswith('100'):
+                    cid = cid[3:]
+                msg_link = f"https://t.me/c/{cid}/{msg_id}"
+            else:
+                msg_link = group_link
+
+            # ── رابط المرسل القابل للضغط ──
+            if sender_username:
+                sender_link = f"https://t.me/{sender_username}"
+            elif sender_id:
+                sender_link = f"tg://user?id={sender_id}"
+            else:
+                sender_link = None
+
+            # ── بناء رسالة التنبيه بـ Markdown (روابط حية) ──
+            # [نص](رابط) يجعل الرابط قابلاً للضغط في تيليجرام
+            group_part  = f"[{group_identifier}]({msg_link})" if msg_link else group_identifier
+            sender_part = f"[{sender_name}]({sender_link})"  if sender_link else sender_name
+
+            notification_msg = (
+                f"🚨 **تنبيه مراقبة**\n\n"
+                f"🔑 الكلمة: `{keyword}`\n"
+                f"👥 المجموعة: {group_part}\n"
+                f"👤 المرسل: {sender_part}\n"
+                f"🕐 الوقت: {msg_time}\n\n"
+                f"💬 الرسالة:\n{full_text}"
+            )
+
+            # إنشاء بيانات التنبيه للواجهة
             alert_data = {
-                "keyword": keyword,
-                "group": group_identifier,
-                "message": message.text[:200] + "..." if len(message.text) > 200 else message.text,
-                "timestamp": time.strftime('%H:%M:%S'),
-                "sender": sender_name,
-                "message_time": time.strftime('%H:%M:%S', time.localtime(message.date.timestamp())),
-                "message_id": message.id,
-                "full_message": message.text
+                "keyword":      keyword,
+                "group":        group_identifier,
+                "group_link":   msg_link or group_link,
+                "message":      full_text[:200] + ("..." if len(full_text) > 200 else ""),
+                "full_message": full_text,
+                "timestamp":    time.strftime('%H:%M:%S'),
+                "sender":       sender_name,
+                "sender_link":  sender_link,
+                "message_time": msg_time,
+                "message_id":   msg_id,
             }
 
-            # إضافة التنبيه للقائمة بأولوية عالية
-            alert_queue.add_alert(self.user_id, alert_data)
-
-            # إرسال فوري للواجهة أيضاً
+            # ── 1. إرسال فوري لتيليجرام مع Markdown ──
             try:
-                socketio.emit('new_alert', alert_data, to=self.user_id)
-                socketio.emit('log_update', {
-                    "message": f"🚨 تنبيه فوري: '{keyword}' في {group_identifier} من {sender_name}"
-                }, to=self.user_id)
-                logger.info(f"✅ Immediate alert sent to interface for user {self.user_id}")
-            except Exception as emit_error:
-                logger.error(f"❌ Failed to emit immediate alert: {str(emit_error)}")
+                await self.client.send_message('me', notification_msg,
+                                               parse_mode='md', link_preview=False)
+                logger.info(f"✅ Alert sent: '{keyword}' in {group_identifier} | msg {msg_link}")
+            except Exception as tg_err:
+                logger.error(f"❌ Failed to send Telegram alert: {tg_err}")
 
-            logger.info(f"✅ Keyword alert triggered for user {self.user_id}: '{keyword}' in {group_identifier}")
+            # ── 2. إضافة للقائمة لتنبيه الواجهة (Socket.IO) ──
+            alert_queue.add_alert(self.user_id, alert_data)
 
         except Exception as e:
             logger.error(f"❌ Error triggering keyword alert: {str(e)}")
@@ -821,8 +956,25 @@ class TelegramClientManager:
     def stop(self):
         """إيقاف العميل"""
         self.stop_flag.set()
-        if self.thread:
-            self.thread.join(timeout=5)
+        
+        # Disconnect client directly if it exists and event loop is running
+        if hasattr(self, 'client') and self.client and hasattr(self, 'loop') and self.loop and self.loop.is_running():
+            try:
+                future = asyncio.run_coroutine_threadsafe(self.client.disconnect(), self.loop)
+                # Wait briefly but don't block
+                future.result(timeout=2)
+            except Exception as e:
+                logger.error(f"Error disconnecting client during stop: {e}")
+
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=3)
+            
+        # Clean up event loop resources
+        if hasattr(self, 'loop') and self.loop and not self.loop.is_closed():
+            try:
+                self.loop.call_soon_threadsafe(self.loop.stop)
+            except Exception as e:
+                logger.error(f"Error stopping loop: {e}")
 
 def get_all_users_operations_status():
     """الحصول على حالة العمليات لجميع المستخدمين"""
@@ -872,28 +1024,6 @@ def notify_user_about_background_operations(user_id):
 
     except Exception as e:
         logger.error(f"Error notifying about background operations: {str(e)}")
-
-def update_monitoring_settings(self, keywords, groups):
-    """تحديث إعدادات المراقبة - فقط الكلمات المفتاحية (المجموعات للإرسال فقط)"""
-    self.monitored_keywords = [k.strip() for k in keywords if k.strip()]
-    # ⚠️ لا نحفظ مجموعات المراقبة - نراقب كل شيء
-    # نحفظ مجموعات الإرسال منفصلة في الإعدادات العادية
-
-    logger.info(f"Updated monitoring settings for {self.user_id}: {len(self.monitored_keywords)} keywords - مراقبة شاملة لكامل الحساب")
-
-def run_coroutine(self, coro):
-    """تشغيل coroutine في event loop الخاص بالعميل"""
-    if not self.loop:
-        raise Exception("Event loop not initialized")
-
-    future = asyncio.run_coroutine_threadsafe(coro, self.loop)
-    return future.result(timeout=30)
-
-def stop(self):
-    """إيقاف العميل"""
-    self.stop_flag.set()
-    if self.thread:
-        self.thread.join(timeout=5)
 
 # =========================== 
 # مدير التليجرام الرئيسي
@@ -987,7 +1117,21 @@ class TelegramManager:
             }, to=user_id)
 
             client_manager = self.get_client_manager(user_id)
+            # إضافة المهلة لضمان بدء الاتصال قبل الإكمال
             client_manager.start_client_thread()
+            
+            # الانتظار حتى يتصل العميل بالتأكيد
+            max_wait = 10
+            wait_time = 0
+            while not client_manager.client or not client_manager.client.is_connected():
+                if wait_time >= max_wait:
+                    break
+                time.sleep(1)
+                wait_time += 1
+
+            if not client_manager.client or not client_manager.client.is_connected():
+                logger.warning(f"Client still not connected after waiting, forcing connect...")
+                client_manager.run_coroutine(client_manager.client.connect())
 
             socketio.emit('log_update', {
                 "message": "📡 فحص حالة التصريح..."
@@ -1003,16 +1147,32 @@ class TelegramManager:
                 }, to=user_id)
 
                 try:
+                    # التأكد من الاتصال بـ Telegram
+                    if not client_manager.client.is_connected():
+                        logger.warning(f"Client not connected, reconnecting...")
+                        socketio.emit('log_update', {
+                            "message": "🔌 جاري إعادة الاتصال بـ Telegram..."
+                        }, to=user_id)
+                        client_manager.run_coroutine(client_manager.client.connect())
+
                     sent = client_manager.run_coroutine(
                         client_manager.client.send_code_request(phone_number)
                     )
+                    logger.info(f"Code request sent successfully to {phone_number}")
+                except FloodWaitError as flood_err:
+                    err_msg = f"حاول لاحقاً - انتظر {flood_err.seconds} ثانية"
+                    logger.error(f"FloodWait: {flood_err}")
+                    socketio.emit('log_update', {
+                        "message": f"⏱️ {err_msg}"
+                    }, to=user_id)
+                    return {"status": "error", "message": f"❌ {err_msg}"}
                 except Exception as send_err:
                     err_msg = str(send_err)
-                    logger.error(f"send_code_request failed: {err_msg}")
+                    logger.error(f"send_code_request failed: {err_msg}", exc_info=True)
                     socketio.emit('log_update', {
-                        "message": f"❌ فشل إرسال الكود: {err_msg}"
+                        "message": f"❌ فشل إرسال الكود: {err_msg[:100]}"
                     }, to=user_id)
-                    return {"status": "error", "message": f"❌ فشل إرسال الكود: {err_msg}"}
+                    return {"status": "error", "message": f"❌ فشل إرسال الكود: {err_msg[:100]}"}
 
                 code_type = type(sent.type).__name__ if hasattr(sent, 'type') else 'unknown'
                 logger.info(f"Code sent to {phone_number}, type={code_type}")
@@ -1267,6 +1427,23 @@ class TelegramManager:
             logger.error(f"Password verification error: {str(e)}")
             return {"status": "error", "message": f"❌ خطأ: {str(e)}"}
 
+    def _resolve_entity(self, client_manager, entity):
+        """حل معرّف المجموعة إلى كيان Telegram مع تنظيف الرموز الزخرفية."""
+        entity = _clean_group_entry(str(entity))
+        if not entity:
+            raise Exception("اسم المجموعة فارغ بعد التنظيف")
+        try:
+            return client_manager.run_coroutine(
+                client_manager.client.get_entity(entity)
+            )
+        except Exception:
+            # جرّب إضافة @ إذا لم يكن رابطاً
+            if not entity.startswith('@') and not entity.startswith('https://') and not entity.startswith('http://'):
+                return client_manager.run_coroutine(
+                    client_manager.client.get_entity('@' + entity)
+                )
+            raise
+
     def send_message_async(self, user_id, entity, message):
         """إرسال رسالة"""
         try:
@@ -1291,16 +1468,7 @@ class TelegramManager:
             except Exception as auth_error:
                 raise Exception(f"خطأ في التحقق من التصريح: {str(auth_error)}")
 
-            try:
-                entity_obj = client_manager.run_coroutine(
-                    client_manager.client.get_entity(entity)
-                )
-            except:
-                if not entity.startswith('@') and not entity.startswith('https://'):
-                    entity = '@' + entity
-                entity_obj = client_manager.run_coroutine(
-                    client_manager.client.get_entity(entity)
-                )
+            entity_obj = self._resolve_entity(client_manager, entity)
 
             # ===== التنقية الذكية للرسالة =====
             final_message = self._maybe_sanitize(user_id, client_manager, entity_obj, entity, message)
@@ -1406,16 +1574,7 @@ class TelegramManager:
             if not is_authorized:
                 raise Exception("العميل غير مصرح")
 
-            try:
-                entity_obj = client_manager.run_coroutine(
-                    client_manager.client.get_entity(entity)
-                )
-            except:
-                if not entity.startswith('@') and not entity.startswith('https://'):
-                    entity = '@' + entity
-                entity_obj = client_manager.run_coroutine(
-                    client_manager.client.get_entity(entity)
-                )
+            entity_obj = self._resolve_entity(client_manager, entity)
 
             # ── فحص الحماية للمجموعة ──────────────────────────────────────────
             action, _reason = self._check_group_protection(user_id, client_manager, entity_obj, entity)
@@ -1469,16 +1628,7 @@ class TelegramManager:
             if not is_authorized:
                 raise Exception("العميل غير مصرح")
 
-            try:
-                entity_obj = client_manager.run_coroutine(
-                    client_manager.client.get_entity(entity)
-                )
-            except:
-                if not entity.startswith('@') and not entity.startswith('https://'):
-                    entity = '@' + entity
-                entity_obj = client_manager.run_coroutine(
-                    client_manager.client.get_entity(entity)
-                )
+            entity_obj = self._resolve_entity(client_manager, entity)
 
             # ===== التنقية الذكية (نطبّقها على نص الكابشن) =====
             if message:
@@ -1555,13 +1705,8 @@ class TelegramManager:
 
                 except Exception as media_error:
                     logger.error(f"Error in media sending process: {str(media_error)}")
-                    # كحل أخير، أرسل النص فقط
-                    if message and message.strip():
-                        text_result = client_manager.run_coroutine(
-                            client_manager.client.send_message(entity_obj, message)
-                        )
-                        results.append(text_result.id)
-                        logger.info(f"Sent text only due to media error: {str(media_error)}")
+                    # إعادة رفع الخطأ — لا نرسل نصاً فقط بصمت
+                    raise Exception(f"فشل إرسال الصورة: {str(media_error)[:100]}")
             else:
                 # إذا لم تكن هناك صور، أرسل الرسالة النصية فقط
                 if message and message.strip():
@@ -1622,6 +1767,16 @@ def monitoring_worker(user_id):
                 "message": f"🚀 بدأت المراقبة الشاملة لكامل الرسائل في الحساب | الإرسال لـ {len(send_groups)} مجموعة"
             }, to=user_id)
 
+        # ── تحميل آخر وقت إرسال من الملف حتى لا يُعاد الإرسال فوراً بعد الإعادة ──
+        _persisted = load_settings(user_id)
+        _saved_last_send = _persisted.get('last_scheduled_send', 0)
+        # إذا لم يكن هناك سجل سابق → ابدأ العداد الآن (انتظر الفترة الكاملة أولاً)
+        if _saved_last_send == 0:
+            _saved_last_send = time.time()
+        with USERS_LOCK:
+            if user_id in USERS:
+                USERS[user_id]['last_scheduled_send'] = _saved_last_send
+
         # الحفاظ على المراقبة نشطة
         consecutive_errors = 0
 
@@ -1645,14 +1800,24 @@ def monitoring_worker(user_id):
                 if send_type == 'scheduled':
                     interval_seconds = int(settings.get('interval_seconds', 3600))
                     last_send = user_data.get('last_scheduled_send', 0)
+                    remaining = interval_seconds - (current_time - last_send)
 
-                    if current_time - last_send >= interval_seconds:
-                        logger.info(f"Executing scheduled send for user {user_id}")
+                    if remaining <= 0:
+                        logger.info(f"Executing scheduled send for user {user_id} (interval={interval_seconds}s)")
                         execute_scheduled_messages(user_id, settings)
 
+                        # ── حفظ وقت الإرسال في الذاكرة والملف ──
                         with USERS_LOCK:
                             if user_id in USERS:
                                 USERS[user_id]['last_scheduled_send'] = current_time
+                        try:
+                            _s = load_settings(user_id)
+                            _s['last_scheduled_send'] = current_time
+                            save_settings(user_id, _s)
+                        except Exception as _se:
+                            logger.error(f"Failed to persist last_scheduled_send: {_se}")
+                    else:
+                        logger.debug(f"Scheduled send for {user_id}: {int(remaining)}s remaining")
 
                 consecutive_errors = 0
 
@@ -2866,19 +3031,33 @@ def api_send_now():
 
             for img_data in images:
                 # استخراج البيانات من Base64
-                base64_data = img_data['data'].split(',')[1]  # إزالة البادئة
+                raw_data = img_data.get('data', '')
+                if ',' in raw_data:
+                    base64_data = raw_data.split(',', 1)[1]
+                else:
+                    base64_data = raw_data
                 image_bytes = base64.b64decode(base64_data)
 
-                # إنشاء ملف مؤقت
-                temp_file = tempfile.NamedTemporaryFile(delete=False, 
-                                                     suffix=f".{img_data['type'].split('/')[-1]}")
+                # تحديد الامتداد الصحيح
+                mime = img_data.get('type', 'image/jpeg')
+                ext = mime.split('/')[-1].lower()
+                if ext in ('jpeg', 'jpg'):
+                    ext = 'jpg'
+                elif ext not in ('png', 'gif', 'webp', 'bmp'):
+                    ext = 'jpg'
+
+                # إنشاء ملف مؤقت ومغلق للكتابة قبل الإرسال
+                temp_file = tempfile.NamedTemporaryFile(
+                    delete=False, suffix=f'.{ext}', mode='wb'
+                )
                 temp_file.write(image_bytes)
                 temp_file.flush()
+                temp_file.close()   # ← إغلاق ضروري قبل Telethon
 
                 image_files.append({
                     'path': temp_file.name,
-                    'name': img_data['name'],
-                    'type': img_data['type']
+                    'name': img_data.get('name', f'image.{ext}'),
+                    'type': mime
                 })
 
             socketio.emit('log_update', {
@@ -2910,43 +3089,51 @@ def api_send_now():
             for i, group in enumerate(groups_list, 1):
                 try:
                     if images and message:
-                        # إرسال الصور مع النص
                         result = telegram_manager.send_message_with_media_async(
                             user_id, group, message, image_files
                         )
                     elif images:
-                        # إرسال الصور فقط
                         result = telegram_manager.send_media_async(
                             user_id, group, image_files
                         )
                     else:
-                        # إرسال النص فقط
                         result = telegram_manager.send_message_async(user_id, group, message)
 
-                    socketio.emit('log_update', {
-                        "message": f"✅ [{i}/{len(groups_list)}] نجح إلى: {group}"
-                    }, to=user_id)
-
-                    successful += 1
-                    with USERS_LOCK:
-                        if user_id in USERS:
-                            USERS[user_id]['stats']['sent'] += 1
-
-                    socketio.emit('stats_update', USERS[user_id]['stats'], to=user_id)
+                    # فحص نتيجة الإرسال (قد يكون "تم التخطي" بدلاً من نجاح فعلي)
+                    if isinstance(result, dict) and result.get('skipped'):
+                        socketio.emit('log_update', {
+                            "message": f"⏭️ [{i}/{len(groups_list)}] تم تخطي المجموعة المحمية: {group}"
+                        }, to=user_id)
+                        # لا نزيد العداد — التخطي ليس نجاحاً ولا فشلاً
+                    else:
+                        socketio.emit('log_update', {
+                            "message": f"✅ [{i}/{len(groups_list)}] نجح إلى: {group}"
+                        }, to=user_id)
+                        successful += 1
+                        with USERS_LOCK:
+                            if user_id in USERS:
+                                USERS[user_id]['stats']['sent'] += 1
+                        with USERS_LOCK:
+                            if user_id in USERS:
+                                socketio.emit('stats_update', USERS[user_id]['stats'], to=user_id)
 
                     if i < len(groups_list):
                         time.sleep(3)
 
                 except Exception as e:
                     error_msg = str(e)
-                    if "banned" in error_msg.lower():
+                    if "banned" in error_msg.lower() or "ban" in error_msg.lower():
                         error_type = "محظور"
+                    elif "flood" in error_msg.lower():
+                        error_type = "تجاوز حد الإرسال — انتظر"
                     elif "private" in error_msg.lower():
                         error_type = "خاص/محدود"
-                    elif "can't write" in error_msg.lower():
-                        error_type = "غير مسموح"
+                    elif "can't write" in error_msg.lower() or "write" in error_msg.lower():
+                        error_type = "غير مسموح بالإرسال"
+                    elif "not found" in error_msg.lower() or "invalid" in error_msg.lower():
+                        error_type = "مجموعة غير موجودة"
                     else:
-                        error_type = "خطأ"
+                        error_type = error_msg[:60]
 
                     logger.error(f"Send error to {group}: {error_msg}")
                     socketio.emit('log_update', {
@@ -2957,8 +3144,7 @@ def api_send_now():
                     with USERS_LOCK:
                         if user_id in USERS:
                             USERS[user_id]['stats']['errors'] += 1
-
-                    socketio.emit('stats_update', USERS[user_id]['stats'], to=user_id)
+                            socketio.emit('stats_update', USERS[user_id]['stats'], to=user_id)
 
             # ملخص نهائي
             socketio.emit('log_update', {

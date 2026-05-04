@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "Y4qSxctieSFzehSDmIkgv"
+uri = "file://artifacts/abu-malk-services/src/assets/images/hero.png"
+type = "image"
+title = "Hero technician smiling"
+
+[[generated]]
+id = "RVF0jFsC-bLzj4EAsI8Mw"
+uri = "file://artifacts/abu-malk-services/src/assets/images/hvac.png"
+type = "image"
+title = "AC inspection"
+
+[[generated]]
+id = "MVxtVd76BBtO_f-hgThCR"
+uri = "file://artifacts/abu-malk-services/src/assets/images/cleaning.png"
+type = "image"
+title = "Clean living space"
+
+[[generated]]
+id = "CysyWGzeE4ptQVxiO-tg1"
+uri = "file://artifacts/abu-malk-services/src/assets/images/plumbing.png"
+type = "image"
+title = "Plumbing tools"
+
+[[generated]]
+id = "CliagRmLaopxuqDa6bo0h"
+uri = "file://artifacts/abu-malk-services/src/assets/images/electrical.png"
+type = "image"
+title = "Electrical work"
